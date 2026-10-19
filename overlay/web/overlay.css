@@ -1,0 +1,75 @@
+/* Farm Guide Overlay: the guide floats over the game in its own transparent window. */
+html, body { background: transparent !important; overflow: hidden; }
+:root { --ov-scale: 1; --ov-bg: 0.66; }
+
+/* the guide: a floating card, opened from the tip */
+body.ov #app {
+  position: fixed; left: 0; top: 0; width: 372px; height: min(660px, calc((100vh - 24px) / var(--ov-scale)));
+  zoom: var(--ov-scale);
+  background: rgba(14, 16, 22, var(--ov-bg)); border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px; overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  transition: transform 0.42s cubic-bezier(.2, .9, .25, 1), opacity 0.3s ease, filter 0.3s;
+}
+body.ov.folded #app { transform: scale(0.08); opacity: 0; filter: blur(6px); }
+body.ov .top { cursor: grab; }
+body.ov.dragging, body.ov.dragging * { cursor: grabbing !important; }
+body.ov.dragging #app, body.ov.dragging .tip { transition: none; }
+
+/* the tip: placed by the host, anywhere on screen */
+body.ov .tip { zoom: var(--ov-scale); translate: none !important; right: auto !important; bottom: auto !important; touch-action: none; }
+/* it pops in and grows on hover from its icon, the end that sits against the screen edge */
+body.ov .tip { transform-origin: 25px 50%; }
+body.ov .tip.flip { flex-direction: row-reverse; padding: 5px 5px 5px 14px; transform-origin: calc(100% - 25px) 50%; }
+body.ov .tip.flip .tiptext { text-align: right; }
+body.ov .tip.peek { animation: ov-tip-in 0.5s cubic-bezier(.2, .9, .3, 1.25); }
+@keyframes ov-tip-in { from { opacity: 0; transform: scale(0.5); } }
+body.ov #toasts { position: fixed; }
+
+/* the plugin isn't running in A2 Tools: nothing is being recorded */
+.ovnotice {
+  margin: 8px 10px 0; padding: 8px 10px; border-radius: 12px; font-size: 12px; line-height: 1.4;
+  background: rgba(255, 159, 10, 0.14); border: 1px solid rgba(255, 159, 10, 0.45); color: #ffd9a0;
+}
+.ovnotice b { color: #fff; }
+body.noplugin .tip .tipicon::after {
+  content: ""; position: absolute; right: -1px; top: -1px; width: 10px; height: 10px; border-radius: 50%;
+  background: #ff9f0a; box-shadow: 0 0 0 2px rgba(14, 16, 22, 0.9); z-index: 2;
+}
+
+/* AION 2 isn't running (or isn't in front): nothing shows, every click goes through */
+body.ov.nogame .tip, body.ov.nogame #app, body.ov.nogame #toasts, body.ov.nogame #fx, body.ov.nogame .plus {
+  opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+}
+
+/* the tip settling against a screen edge after a drag */
+body.ov.snapping:not(.dragging) .tip, body.ov.snapping:not(.dragging) #app { transition: left 0.4s cubic-bezier(.3, 1.5, .5, 1), top 0.4s cubic-bezier(.3, 1.5, .5, 1), transform 0.42s cubic-bezier(.2, .9, .25, 1), opacity 0.3s ease; }
+
+/* ── the overlay's own card: first-run question, updates ── */
+.ovcard {
+  position: fixed; left: 50%; top: 22%; z-index: 60; width: 460px; max-width: calc(100vw - 32px); zoom: var(--ov-scale);
+  translate: -50% 0; padding: 20px 22px 18px; border-radius: 18px; color: #ece6d6; text-shadow: none;
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: linear-gradient(180deg, rgba(24, 27, 38, 0.97), rgba(13, 15, 22, 0.97));
+  border: 1px solid rgba(242, 195, 91, 0.4); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 30px rgba(242, 195, 91, 0.12);
+  opacity: 0; transform: translateY(-14px) scale(0.96); transition: opacity 0.25s ease, transform 0.4s cubic-bezier(.2, .9, .3, 1.2);
+}
+.ovcard.in { opacity: 1; transform: none; }
+.ovcard.out { opacity: 0; transform: translateY(-8px) scale(0.98); transition-duration: 0.22s; }
+.ovcard.warn { border-color: rgba(255, 159, 10, 0.55); }
+.ovcard .oc-t { font: 600 18px "Bahnschrift", "Segoe UI", sans-serif; color: #ffe7a6; margin-bottom: 8px; }
+.ovcard .oc-b p { margin: 0 0 6px; color: #d4cfc2; }
+.ovcard .oc-prog { height: 6px; margin: 10px 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.ovcard .oc-prog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f2c35b, #ffe7a6); transition: width 0.2s; }
+.ovcard .oc-s { min-height: 0; font-size: 12.5px; color: #9aa1b4; }
+.ovcard .oc-s:not(:empty) { margin-top: 6px; }
+.ovcard .oc-s.err { color: #ffb35c; }
+.ovcard .oc-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ovcard .oc-btn {
+  height: 36px; padding: 0 16px; border-radius: 10px; cursor: pointer; font: 600 13.5px "Segoe UI", sans-serif;
+  color: #ece6d6; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); transition: background 0.2s;
+}
+.ovcard .oc-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.ovcard .oc-btn.primary { color: #ffe7a6; border-color: rgba(242, 195, 91, 0.7); background: linear-gradient(180deg, rgba(242, 195, 91, 0.3), rgba(242, 195, 91, 0.14)); }
+.ovcard .oc-btn:disabled { opacity: 0.45; cursor: default; }
+.ovcard .oc-f { margin-top: 12px; font-size: 12px; color: #7f8699; }
+body.ov.nogame .ovcard:not(.always) { display: none; }

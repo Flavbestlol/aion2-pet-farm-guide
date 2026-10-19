@@ -1,0 +1,6 @@
+overlay/ui/
+overlay/src-tauri/target/
+overlay/src-tauri/gen/
+release/
+keys/
+*.key

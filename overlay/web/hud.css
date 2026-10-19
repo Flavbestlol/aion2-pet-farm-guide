@@ -1,0 +1,142 @@
+/* HUD theme: no panel. Every part floats over the game on its own backing, the way AION 2's own HUD
+   does it: text on dark strips that fade out (like the quest tracker), round frames for pictures,
+   a round minimap. Pets / Stats / Settings stay in the same frame: same header, same tab pill in
+   the same place, and their content on one dark glass sheet that fades toward the middle. */
+body.hud {
+  --halo: 0 0 2px #000, 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.6);
+  /* the strips are solid at the screen edge the guide is docked to, and fade toward the middle */
+  --strip-dir: 90deg;
+  --strip: linear-gradient(var(--strip-dir), rgba(6, 8, 12, 0.8) 0%, rgba(6, 8, 12, 0.62) 55%, rgba(6, 8, 12, 0) 100%);
+  --strip-r: 12px 0 0 12px;
+}
+body.hud.side-right { --strip-dir: 270deg; --strip-r: 0 12px 12px 0; }
+body.hud.ov #app { text-shadow: var(--halo); }
+
+/* ── Guide tab: no card at all ── */
+body.hud.ov[data-tab="guide"] #app { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; height: auto; }
+body.hud[data-tab="guide"] .pane[data-pane="guide"] { overflow: visible; }
+
+/* header: the zone name on a fading strip, like a game window title */
+body.hud .top { background: var(--strip); border-radius: var(--strip-r); padding: 8px 8px 8px 6px; }
+body.hud .t1 { font: 600 16px/1.2 var(--num); }
+body.hud .t1 .stopno { color: rgba(255, 255, 255, 0.72); font-weight: 500; }
+body.hud .nav svg, body.hud .lockbtn, body.hud .foldbtn { filter: drop-shadow(0 1px 2px #000); }
+
+/* tabs: one small solid pill, a gold thumb sliding under the open tab; it never moves between tabs */
+body.hud .tabs {
+  position: relative; margin: 6px auto 0 6px; width: 250px; padding: 3px; gap: 0; border: 0; border-radius: 12px;
+  background: rgba(10, 12, 16, 0.82); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+body.hud .tabs::before {
+  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 4); border-radius: 9px;
+  transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.36s cubic-bezier(.2, .9, .3, 1.12);
+  background: linear-gradient(180deg, rgba(242, 195, 91, 0.26), rgba(242, 195, 91, 0.12)); box-shadow: inset 0 0 0 1px rgba(242, 195, 91, 0.5), 0 0 10px rgba(242, 195, 91, 0.18);
+}
+body.hud .tabs button { position: relative; padding: 4px 0; margin: 0; border: 0; font: 600 11.5px var(--num); letter-spacing: 0.02em; transition: color 0.25s; }
+body.hud .tabs button[aria-selected="true"] { color: var(--gold-hi); }
+
+/* the dial: an opaque round frame with a dark rim, so it reads on any ground */
+body.hud .stage { padding: 10px 0 0 0; }
+body.hud .dial::before { content: ""; position: absolute; inset: -3px; border-radius: 50%; background: radial-gradient(circle, rgba(6, 8, 12, 0.7) 60%, rgba(6, 8, 12, 0) 72%); z-index: -1; }
+body.hud .dial .mob { background: radial-gradient(circle at 50% 38%, #2e3442 0%, #0c0f16 75%); }
+body.hud .focus { gap: 10px; }
+/* the text beside it, and the way there: on fading strips */
+body.hud .info, body.hud .travel {
+  background: var(--strip); border: 0; border-radius: var(--strip-r); padding: 8px 18px 8px 10px;
+}
+body.hud .travel { margin-top: 8px; }
+body.hud .kill .mobname { font-size: 15.5px; }
+body.hud .lvline .bar { background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); }
+body.hud .kills { color: rgba(255, 255, 255, 0.6); }
+body.hud .suggest, body.hud .notice, body.hud .ovnotice { background: rgba(10, 12, 16, 0.86); border-color: rgba(255, 255, 255, 0.14); }
+
+/* queue: portraits are opaque already; a dark rim lifts them off the ground */
+body.hud .queue { padding: 10px 0 6px 2px; }
+body.hud .qcell .qr { border-radius: 50%; box-shadow: 0 0 0 3px rgba(6, 8, 12, 0.6), 0 2px 8px rgba(0, 0, 0, 0.5); }
+body.hud .qcell .n { text-shadow: var(--halo); color: #fff; }
+
+/* map: round, like the game's minimap; its edge fades into a dark rim */
+body.hud .mapzone { flex: none; align-items: flex-start; }
+body.hud .mapzone .mapwrap { align-self: auto; }
+body.hud .mapwrap {
+  flex: none; width: var(--msz, 210px); height: var(--msz, 210px); margin: 6px 0 0 6px; border-radius: 50%; border: 0; background: #0c0f16;
+  box-shadow: 0 0 0 3px rgba(6, 8, 12, 0.7), 0 0 0 4px rgba(255, 255, 255, 0.14), 0 6px 22px rgba(0, 0, 0, 0.55);
+}
+body.hud.map-square .mapwrap { border-radius: 14px; }
+body.hud .mapbar { width: var(--msz, 210px); margin-left: 6px; padding-top: 6px; }
+body.hud .mapbar button { background: rgba(6, 8, 12, 0.72); border-color: rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.85); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+body.hud.map-round .mapwrap canvas.overlay { -webkit-mask-image: radial-gradient(circle, #000 66%, transparent 71%); mask-image: radial-gradient(circle, #000 66%, transparent 71%); }
+body.hud .maphint { display: none; }
+body.hud .mapbtns { top: 8px; right: 8px; bottom: auto; left: auto; transform: none; }
+body.hud.side-right .mapbtns { right: auto; left: 8px; }
+/* loot: plain coloured names with a halo */
+body.hud .loot { padding: 8px 0 4px 6px; max-width: 360px; }
+body.hud .loot .ticker { background: linear-gradient(var(--strip-dir), rgba(6, 8, 12, 0.85), rgba(6, 8, 12, 0.7) 70%, rgba(6, 8, 12, 0)); border-radius: var(--strip-r); padding: 3px 6px; }
+body.hud .loot .lbl { text-shadow: var(--halo); color: rgba(255, 255, 255, 0.7); }
+
+/* ── Pets / Stats / Settings: the same frame as the guide (no card; header strip and tab pill stay
+   put), the content on one dark glass sheet, solid at the docked edge and lighter toward the middle ── */
+body.hud.ov:not([data-tab="guide"]) #app { background: none; border: 0; box-shadow: none; border-radius: 0; }
+body.hud:not([data-tab="guide"]) .pane {
+  margin-top: 8px; border-radius: var(--strip-r); text-shadow: none;
+  background: linear-gradient(var(--strip-dir), rgba(8, 10, 15, 0.92) 0%, rgba(8, 10, 15, 0.85) 60%, rgba(8, 10, 15, 0.7) 100%);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(242, 195, 91, 0.22);
+}
+body.hud .pane[data-pane="pets"], body.hud .pane[data-pane="stats"], body.hud .pane[data-pane="settings"] { scrollbar-color: rgba(242, 195, 91, 0.3) transparent; }
+body.hud .search { background-color: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+body.hud .search:focus { border-color: rgba(242, 195, 91, 0.55); }
+body.hud .chips button { border-radius: 9px; background: rgba(255, 255, 255, 0.05); transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s; }
+body.hud .chips button:active { transform: scale(0.95); }
+body.hud .petrow { border-radius: 10px; transition: background 0.2s; }
+body.hud .petrow .pic { box-shadow: 0 0 0 2px rgba(6, 8, 12, 0.7), 0 2px 6px rgba(0, 0, 0, 0.5); }
+body.hud .petlist .group { font: 700 10.5px var(--num); letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+body.hud .stat { border-radius: 12px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)); border-color: rgba(255, 255, 255, 0.08); }
+body.hud .sgroup { border-radius: 12px; background: rgba(255, 255, 255, 0.035); border-color: rgba(255, 255, 255, 0.08); }
+/* a tab opening: the sheet slides out of the docked edge and its rows follow, one after another */
+body.hud .pane.tabin { animation: strip-in 0.42s cubic-bezier(.2, .9, .25, 1) backwards; }
+body.hud .pane.tabin > *, body.hud .pane.tabin .petlist > li:nth-child(-n + 14), body.hud .pane.tabin .settings > *, body.hud .pane.tabin .statgrid > * {
+  animation: hud-row 0.45s cubic-bezier(.2, .8, .2, 1) backwards;
+}
+body.hud .pane.tabin .petlist > li:nth-child(1) { animation-delay: 0.08s; } body.hud .pane.tabin .petlist > li:nth-child(2) { animation-delay: 0.1s; }
+body.hud .pane.tabin .petlist > li:nth-child(3) { animation-delay: 0.12s; } body.hud .pane.tabin .petlist > li:nth-child(4) { animation-delay: 0.14s; }
+body.hud .pane.tabin .petlist > li:nth-child(5) { animation-delay: 0.16s; } body.hud .pane.tabin .petlist > li:nth-child(6) { animation-delay: 0.18s; }
+body.hud .pane.tabin .petlist > li:nth-child(7) { animation-delay: 0.2s; } body.hud .pane.tabin .petlist > li:nth-child(8) { animation-delay: 0.22s; }
+body.hud .pane.tabin .petlist > li:nth-child(n + 9) { animation-delay: 0.24s; }
+body.hud .pane.tabin .settings > :nth-child(2), body.hud .pane.tabin .statgrid > :nth-child(2) { animation-delay: 0.05s; }
+body.hud .pane.tabin .settings > :nth-child(3), body.hud .pane.tabin .statgrid > :nth-child(3) { animation-delay: 0.08s; }
+body.hud .pane.tabin .settings > :nth-child(4), body.hud .pane.tabin .statgrid > :nth-child(4) { animation-delay: 0.11s; }
+body.hud .pane.tabin .settings > :nth-child(5), body.hud .pane.tabin .statgrid > :nth-child(5) { animation-delay: 0.14s; }
+body.hud .pane.tabin .settings > :nth-child(n + 6), body.hud .pane.tabin .statgrid > :nth-child(n + 6) { animation-delay: 0.17s; }
+@keyframes hud-row { from { opacity: 0; transform: translateX(calc(var(--strip-from, -24px) * 0.5)); } }
+
+/* ── docked on the right: the guide is mirrored, so it grows out of the right edge ── */
+body.hud.side-right .top { padding: 8px 6px 8px 8px; }
+body.hud.side-right .tabs { margin: 6px 6px 0 auto; }
+body.hud.side-right .focus { grid-template-columns: 1fr 100px; }
+body.hud.side-right .focus .dial { order: 2; }
+body.hud.side-right .info { padding: 8px 10px 8px 18px; text-align: right; }
+body.hud.side-right .petline { flex-direction: row-reverse; }
+body.hud.side-right .petline .left { margin-left: 0; margin-right: auto; }
+body.hud.side-right .lvline { direction: rtl; }
+body.hud.side-right .lvline > * { direction: ltr; }
+body.hud.side-right .lvline .bar i { margin-left: auto; }
+body.hud.side-right .travel { grid-template-columns: 1fr 28px; padding: 8px 10px 8px 18px; text-align: right; }
+body.hud.side-right .travel .arrow { order: 2; }
+body.hud.side-right .queue { flex-direction: row-reverse; padding: 10px 2px 6px 0; }
+body.hud.side-right .mapzone { align-items: flex-end; }
+body.hud.side-right .mapwrap { margin: 6px 6px 0 auto; }
+body.hud.side-right .mapbar { margin-left: 0; margin-right: 6px; }
+body.hud.side-right .loot { flex-direction: row-reverse; padding: 8px 6px 4px 0; margin-left: auto; }
+body.hud.side-right .dial .badge { right: auto; left: -4px; }
+body.hud.side-right .dial .streak { left: auto; right: -6px; }
+
+/* the strips slide in from their edge when the guide opens */
+body.hud[data-tab="guide"]:not(.folded) .top, body.hud[data-tab="guide"]:not(.folded) .info, body.hud[data-tab="guide"]:not(.folded) .travel {
+  animation: strip-in 0.45s cubic-bezier(.2, .9, .25, 1) backwards;
+}
+body.hud[data-tab="guide"]:not(.folded) .info { animation-delay: 0.05s; }
+body.hud[data-tab="guide"]:not(.folded) .travel { animation-delay: 0.1s; }
+@keyframes strip-in { from { opacity: 0; transform: translateX(var(--strip-from, -24px)); } }
+body.hud.side-right { --strip-from: 24px; }
+@media (prefers-reduced-motion: reduce) { body.hud .top, body.hud .info, body.hud .travel, body.hud .pane.tabin, body.hud .pane.tabin * { animation: none !important; } }

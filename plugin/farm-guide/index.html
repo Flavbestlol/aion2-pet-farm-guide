@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Farm Guide</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="ingame.css" />
+  </head>
+  <body>
+    <div class="reccard" hidden>
+      <div class="cdot"></div>
+      <div class="ctext"><b>Recording for the overlay</b><span class="csub">Keep this window open: make it small and park it anywhere. Hidden or closed, nothing is recorded.</span></div>
+      <div class="cnum"><b class="cn">0</b><small>souls this session</small></div>
+    </div>
+    <div id="app">
+      <header class="top">
+        <button type="button" class="nav prev" aria-label="Previous stop" title="Previous stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+        <div class="title" role="button" tabindex="0" aria-haspopup="dialog" title="Every stop: click to pick one">
+          <svg class="emblem" viewBox="0 0 24 24" aria-hidden="true"><use href="#fg-emblem" /></svg>
+          <div class="t1"><span class="stopno"></span><span class="zone"></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" /></svg></div>
+          <div class="t2"><span class="sub"></span><span class="flash" aria-live="polite"></span></div>
+        </div>
+        <button type="button" class="nav next" aria-label="Next stop" title="Next stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <button type="button" class="lockbtn" aria-pressed="false" aria-label="Lock Farm Guide" title="Lock Farm Guide against accidental clicks">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path class="shackle" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+        </button>
+        <button type="button" class="foldbtn" hidden aria-label="Fold into the tip" title="Fold into the tip">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6 6 6-6M6 4l6 6 6-6" /></svg>
+        </button>
+      </header>
+      <div class="stoplist" hidden role="dialog" aria-label="Every stop on the route">
+        <div class="sl-seg" hidden></div>
+        <div class="sl-head">
+          <input type="search" class="sl-find" placeholder="Find a pet, monster or zone" spellcheck="false" />
+          <button type="button" class="sl-done" aria-pressed="true"></button>
+        </div>
+        <div class="sl-sum"></div>
+        <div class="sl-body" role="listbox"></div>
+      </div>
+
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="guide" aria-selected="true">Guide</button>
+        <button type="button" role="tab" data-tab="pets">Pets</button>
+        <button type="button" role="tab" data-tab="stats">Stats</button>
+        <button type="button" role="tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <section class="pane" data-pane="guide">
+        <div class="notice" hidden></div>
+        <div class="stage">
+          <div class="card">
+            <div class="focus">
+              <div class="dial" title="Souls collected at this stop">
+                <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#ffe7a6" />
+                      <stop offset="0.55" stop-color="#f2c35b" />
+                      <stop offset="1" stop-color="#b9832b" />
+                    </linearGradient>
+                    <linearGradient id="ggrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop class="g0" offset="0" stop-color="#ffffff" />
+                      <stop class="g1" offset="1" stop-color="#4fa3ff" />
+                    </linearGradient>
+                    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#c8ffd9" />
+                      <stop offset="1" stop-color="#3fbf74" />
+                    </linearGradient>
+                  </defs>
+                  <circle class="track" cx="50" cy="50" r="46" />
+                  <circle class="ticks" cx="50" cy="50" r="46" />
+                  <circle class="fill" cx="50" cy="50" r="46" transform="rotate(-90 50 50)" />
+                </svg>
+                <div class="mob"><img alt="" draggable="false" /><svg class="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></div>
+                <div class="badge"><img alt="" draggable="false" /></div>
+                <div class="pct">0%</div>
+                <div class="streak" hidden title="Kill streak: souls less than 45 s apart"></div>
+              </div>
+              <div class="info">
+                <div class="kill"><span class="verb">Kill</span> <b class="mobname"></b> <span class="per"></span></div>
+                <div class="petline"><b class="petname"></b><span class="left"><span class="roll">0</span> left</span></div>
+                <div class="lvline"><span class="lv"></span><span class="bar"><i></i></span><span class="pts"></span></div>
+                <div class="kills"></div>
+                <div class="alike" hidden></div>
+              </div>
+            </div>
+            <div class="travel">
+              <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 15-6-3.4L6 17z" /></svg>
+              <div class="route-text"><div class="tp"></div><div class="walk"></div><div class="trnote" hidden></div></div>
+            </div>
+          </div>
+          <div class="suggest" hidden></div>
+          <div class="queue" aria-label="Pets at this stop"></div>
+        </div>
+        <div class="mapzone">
+          <div class="mapwrap">
+            <canvas class="tiles"></canvas>
+            <canvas class="overlay"></canvas>
+            <div class="maptitle"></div>
+            <div class="maphint"></div>
+            <div class="mapbtns">
+              <button type="button" class="mapview" title="Switch between the way there and the farm circle (or double-click the map)">⤢</button>
+            </div>
+            <div class="mapgrip" title="Drag to resize the map · double-click: default size"></div>
+          </div>
+          <div class="mapbar">
+            <button type="button" class="mb-shape" title="Round or square map"><svg viewBox="0 0 16 16" aria-hidden="true"><circle class="i-round" cx="8" cy="8" r="5.5" /><rect class="i-square" x="2.5" y="2.5" width="11" height="11" rx="2" /></svg></button>
+            <button type="button" class="mb-loop" title="Farming loop: the order to run the pockets at a stop"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 9.5A5 5 0 1 0 4.6 4.2" /><path d="M2.6 2.6v3.2h3.2" /></svg><span>Loop</span></button>
+            <button type="button" class="mb-icons" title="Monster icons on the map: hide them to see the loop"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="7" r="3.2" /><circle cx="11" cy="9.5" r="2.4" /><path class="i-off" d="M2.5 13.5L13.5 2.5" /></svg></button>
+            <button type="button" class="mb-fold" title="Hide the map"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" /></svg><span>Map</span></button>
+          </div>
+        </div>
+        <div class="loot" title="What else the monsters in this circle drop, per kill. Hover to pause">
+          <span class="lbl">Also drops</span>
+          <div class="ticker"><div class="track"></div></div>
+        </div>
+        <div class="empty-guide" hidden></div>
+      </section>
+
+      <section class="pane" data-pane="pets" hidden>
+        <input type="search" class="search" placeholder="Search pets or monsters" spellcheck="false" />
+        <div class="chips filter" role="group" aria-label="Filter"></div>
+        <ol class="petlist"></ol>
+      </section>
+
+      <section class="pane" data-pane="stats" hidden></section>
+
+      <section class="pane" data-pane="settings" hidden>
+        <form class="settings" autocomplete="off"></form>
+        <a class="kofi" href="https://ko-fi.com/flavbest" target="_blank" rel="noopener" title="Free and open. If it saved you time, a coffee keeps it going">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 9h1.5a2.5 2.5 0 0 1 0 5H17" /><path class="heart" d="M10.5 10.6c-.6-.8-2-.6-2 .6 0 1 2 2.3 2 2.3s2-1.3 2-2.3c0-1.2-1.4-1.4-2-.6z" /></svg>
+          Support on Ko-fi
+        </a>
+        <p class="credit">
+          Farm data, monster art and drop tables:
+          <a href="https://metabot.gg/en/aion-2">MetaBot.GG</a>. Pet names and teleport numbers:
+          <a href="https://github.com/taengu/A2Tools-Plugins">A2 Tools Pet Soul Tracker</a>.
+          <span class="ver"></span>
+        </p>
+      </section>
+    </div>
+    <!-- tip mode: everything folds into this; a click opens the guide again -->
+    <button type="button" class="tip" hidden aria-label="Open Farm Guide">
+      <span class="tipicon">
+        <svg class="tipring" viewBox="0 0 44 44" aria-hidden="true"><circle class="t" cx="22" cy="22" r="19.5" /><circle class="f" cx="22" cy="22" r="19.5" /></svg>
+        <img class="tipmobimg" alt="" draggable="false" />
+        <img class="tippet" alt="" draggable="false" />
+        <svg class="tipnav" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 15-6-3.4L6 17z" /></svg>
+      </span>
+      <span class="tiptext"><b class="tipmob"></b><span class="tipsub"></span></span>
+      <span class="tipstreak" hidden></span>
+    </button>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="fg-silver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#b9c2d0" /></linearGradient>
+        <symbol id="fg-emblem" viewBox="0 0 24 24">
+          <path fill="url(#fg-silver)" d="M15.6 2.7A9.6 9.6 0 1 0 21.3 16 7.7 7.7 0 1 1 15.6 2.7z" opacity="0.9" />
+          <path fill="#fff" d="M12 6.2l1.3 3.6 3.6 1.3-3.6 1.3L12 16l-1.3-3.6-3.6-1.3 3.6-1.3z" />
+          <circle cx="17.6" cy="6.4" r="0.9" fill="#fff" opacity="0.85" />
+        </symbol>
+      </defs>
+    </svg>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div id="toasts" aria-live="polite"></div>
+
+    <script src="/_sdk/a2.js"></script>
+    <script src="data.js"></script>
+    <script src="community.js"></script>
+    <script src="engine.js"></script>
+    <script src="fx.js"></script>
+    <script src="map.js"></script>
+    <script src="app.js"></script>
+    <script src="bridge.js"></script>
+  </body>
+</html>

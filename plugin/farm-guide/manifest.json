@@ -1,0 +1,117 @@
+{
+  "id": "farm-guide",
+  "name": "AION 2 Pet Farm Guide",
+  "version": "1.16.0",
+  "apiVersion": 2,
+  "author": "Flavbest",
+  "description": "Where to farm each pet's souls: a route over every unfinished pet, the monster to kill now, the way there on a map, and which areas pay best. Also feeds the Farm Guide Overlay app.",
+  "permissions": [
+    "storage",
+    "events:character",
+    "decoder:pet-list",
+    "decoder:soul-gained",
+    "decoder:level-up",
+    "decoder:map-load",
+    "window"
+  ],
+  "decoders": [
+    {
+      "name": "pet-list",
+      "opcode": "00 90",
+      "fields": [
+        {
+          "type": "skip:4"
+        },
+        {
+          "name": "levels",
+          "type": "list",
+          "count": "varint",
+          "fields": [
+            {
+              "name": "pet",
+              "type": "u32"
+            },
+            {
+              "type": "skip:4"
+            },
+            {
+              "name": "level",
+              "type": "u32"
+            }
+          ]
+        },
+        {
+          "name": "points",
+          "type": "list",
+          "count": "varint",
+          "fields": [
+            {
+              "name": "pet",
+              "type": "u32"
+            },
+            {
+              "name": "points",
+              "type": "u32"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "soul-gained",
+      "opcode": "0D 90",
+      "immediate": true,
+      "fields": [
+        {
+          "type": "skip:1"
+        },
+        {
+          "name": "pet",
+          "type": "u32"
+        },
+        {
+          "name": "amount",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "level-up",
+      "opcode": "14 90",
+      "immediate": true,
+      "fields": [
+        {
+          "type": "skip:2"
+        },
+        {
+          "name": "pet",
+          "type": "u32"
+        },
+        {
+          "name": "level",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "map-load",
+      "opcode": "21 36",
+      "immediate": true,
+      "fields": [
+        {
+          "type": "skip:4"
+        },
+        {
+          "name": "map",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "panel": {
+      "width": 380,
+      "height": 640
+    }
+  }
+}

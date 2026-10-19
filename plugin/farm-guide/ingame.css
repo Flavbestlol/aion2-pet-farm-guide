@@ -1,0 +1,150 @@
+/* In-game theme: made to sit in AION 2's own HUD. No panel: type floats over the scene with a soft
+   halo, titles in a thin serif like the game's window titles, the monster to kill named like an enemy
+   target plate (‹ red name ›), the way there set like the quest tracker (gold line, white note),
+   the map framed like the minimap. Quiet everywhere else.
+   Looks best with the meter's own opacity slider (window title bar) at its minimum. */
+
+body.ingame {
+  --ink: #ffffff;
+  --ink-2: rgba(255, 255, 255, 0.84);
+  --mute: rgba(226, 232, 240, 0.66);
+  --dim: rgba(226, 232, 240, 0.46);
+  --line: rgba(255, 255, 255, 0.1);
+  --well: rgba(8, 10, 14, 0.42);
+  --gold: #f3c969;
+  --gold-hi: #fff2cc;
+  --done: #7be08f;
+  --enemy: #ff6a5c;
+  --rift: #c58cff;
+  --abyss: #7fd0ff;
+  --cap: rgba(8, 10, 14, 0.5);
+  --hair: 1px solid rgba(255, 255, 255, 0.09);
+  --serif: "Sitka Banner", "Sitka Display", "Sitka Heading", Georgia, "Times New Roman", serif;
+  --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --num: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--ui);
+}
+body.ingame #app { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 10px rgba(0, 0, 0, 0.4); }
+body.ingame .search, body.ingame .num, body.ingame .seg button[aria-pressed="true"], body.ingame .btn.gold,
+body.ingame .chips button[aria-pressed="true"] { text-shadow: none; }
+
+/* header: the game's window title — emblem + thin serif, a dark band that fades out to the right */
+body.ingame .top {
+  padding: 10px 8px 8px; position: relative;
+  background: linear-gradient(90deg, rgba(8, 10, 14, 0.78), rgba(8, 10, 14, 0.42) 65%, rgba(8, 10, 14, 0));
+}
+body.ingame .top::after {
+  content: ""; position: absolute; left: 10px; right: 30%; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, rgba(243, 201, 105, 0.55), transparent);
+}
+body.ingame .title { text-align: left; }
+body.ingame .title .emblem { display: none; }
+body.ingame .t1 { font: 400 19px/1.15 var(--serif); letter-spacing: 0.01em; }
+body.ingame .t1 .stopno { font: 500 11.5px var(--ui); color: var(--mute); letter-spacing: 0; vertical-align: 2px; }
+body.ingame .t1 .zone { color: #ffffff; }
+body.ingame .t2 { color: var(--mute); }
+body.ingame .t2 .flash { color: var(--gold-hi); }
+body.ingame .nav { border: 0; background: none; }
+body.ingame .nav svg { stroke: rgba(255, 255, 255, 0.8); stroke-width: 2; filter: drop-shadow(0 1px 2px #000); }
+body.ingame .lockbtn, body.ingame .foldbtn { color: rgba(255, 255, 255, 0.55); }
+body.ingame.locked .lockbtn { color: var(--gold); }
+
+/* tabs: plain words with a short gold underline, like the game's menus */
+body.ingame .tabs { border: 0; padding: 0 12px; gap: 14px; justify-content: flex-start; }
+body.ingame .tabs button { flex: none; padding: 6px 0 5px; font: 500 12.5px var(--ui); color: var(--mute); border-bottom: 2px solid transparent; }
+body.ingame .tabs button[aria-selected="true"] { color: #ffffff; border-bottom-color: var(--gold); }
+
+/* the dial: a round emblem frame, thin silver, progress in the pet's colour */
+body.ingame .stage { padding-top: 12px; }
+body.ingame .ring .track { stroke: rgba(255, 255, 255, 0.16); stroke-width: 4; }
+body.ingame .ring .ticks { display: none; }
+body.ingame .ring .fill { stroke: url(#ggrad); stroke-width: 4; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--genus, #fff) 80%, transparent)); }
+body.ingame .dial.complete .ring .fill { stroke: var(--done); }
+body.ingame .dial .mob { inset: 8px; background: radial-gradient(circle at 50% 40%, rgba(40, 46, 60, 0.75), rgba(6, 8, 12, 0.85)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 0 2px rgba(0, 0, 0, 0.35); }
+body.ingame .dial .badge { border-width: 1.5px; background: rgba(6, 8, 12, 0.8); }
+body.ingame .dial .pct { background: rgba(8, 10, 14, 0.72); border: var(--hair); color: #ffffff; }
+body.ingame .dial .streak { background: rgba(8, 10, 14, 0.72); border: 1px solid rgba(255, 160, 60, 0.6); color: #ffc46b; box-shadow: none; }
+
+/* the monster: named like an enemy target plate — ‹ red name › */
+body.ingame .kill .verb { display: none; }
+body.ingame .kill .mobname { font: 600 15px/1.2 var(--ui); color: var(--enemy); }
+body.ingame .kill .mobname::before { content: "‹ "; color: rgba(160, 200, 255, 0.9); font-weight: 400; }
+body.ingame .kill .mobname::after { content: " ›"; color: rgba(160, 200, 255, 0.9); font-weight: 400; }
+body.ingame .kill .per { color: var(--ink-2); }
+body.ingame .petline .petname { color: #ffffff; }
+body.ingame .petline .roll { font: 600 19px var(--num); }
+/* the level bar: thin, like the HP bar under a name */
+body.ingame .lvline .bar { height: 4px; border-radius: 0; background: rgba(0, 0, 0, 0.45); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); }
+body.ingame .lvline .bar i { border-radius: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--genus) 70%, #000), var(--genus)); }
+body.ingame .kills { color: var(--dim); }
+
+/* the way there: set like the quest tracker — a gold line and a white note under it */
+body.ingame .travel { margin-top: 10px; padding: 0; background: none; border: 0; grid-template-columns: 22px 1fr; }
+body.ingame .travel .arrow { width: 20px; height: 20px; fill: var(--gold); filter: drop-shadow(0 1px 2px #000); }
+body.ingame .travel .tp { color: var(--gold); font-size: 13px; }
+body.ingame .travel .tp b { color: var(--gold); font: 500 13px var(--ui); }
+body.ingame .travel .walk { color: #ffffff; }
+body.ingame .travel.here .arrow { fill: var(--done); }
+
+/* notices, offers, toasts: the game's dark message boxes */
+body.ingame .notice, body.ingame .suggest { background: rgba(8, 10, 14, 0.66); border: var(--hair); border-radius: 4px; }
+body.ingame .suggest .st b { color: var(--gold); }
+body.ingame .toast { background: linear-gradient(90deg, rgba(8, 10, 14, 0.9), rgba(8, 10, 14, 0.65)); border: 0; border-left: 2px solid var(--gold); border-radius: 2px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+body.ingame .toast.done { border-left-color: var(--done); }
+body.ingame .toast .tt { font: 400 15px var(--serif); }
+body.ingame .chip-stat { background: rgba(255, 255, 255, 0.08); border-radius: 2px; }
+
+/* queue: portraits like skill slots */
+body.ingame .qcell svg .t { stroke: rgba(255, 255, 255, 0.14); }
+body.ingame .qcell img { background: rgba(6, 8, 12, 0.8); }
+body.ingame .qcell.now .qr::after { border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 8px rgba(255, 255, 255, 0.35); }
+body.ingame .qcell .n { color: var(--mute); }
+body.ingame .qcell.now .n { color: #ffffff; }
+
+/* map: framed like the minimap — a dark title strip with the zone, the map under it */
+body.ingame .mapwrap { border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 2px; background: rgba(8, 10, 14, 0.6); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4); }
+body.ingame .maptitle {
+  display: block; position: absolute; z-index: 2; left: 0; right: 0; top: 0; height: 22px; padding: 0 30px 0 8px;
+  background: linear-gradient(180deg, rgba(30, 38, 52, 0.95), rgba(18, 23, 33, 0.92)); border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font: 500 12px/22px var(--ui); color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+body.ingame .mapbtns { top: 1px; right: 4px; }
+body.ingame .mapbtns button { width: 20px; height: 20px; background: none; border: 0; color: rgba(255, 255, 255, 0.7); }
+body.ingame .maphint { background: rgba(8, 10, 14, 0.7); border-radius: 2px; color: var(--ink-2); }
+
+/* loot: a plain line of item names in their rarity colour */
+body.ingame .item { background: none; border: 0; padding: 0 8px 0 0; }
+body.ingame .item img { box-shadow: 0 0 0 1px var(--rar); border-radius: 2px; }
+body.ingame .item .p { color: var(--dim); }
+
+/* Pets / Stats / Settings: the game's list panels — dark, square, thin dividers */
+body.ingame .search { background: rgba(8, 10, 14, 0.6); border: var(--hair); border-radius: 2px; color: #fff; }
+body.ingame .chips button { background: rgba(8, 10, 14, 0.5); border: var(--hair); border-radius: 2px; color: var(--ink-2); }
+body.ingame .chips button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: #17120a; }
+body.ingame .petrow { border-radius: 2px; }
+body.ingame .petrow:hover { background: rgba(255, 255, 255, 0.05); }
+body.ingame .petrow .pic { border-width: 1.5px; background: rgba(6, 8, 12, 0.8); }
+body.ingame .petrow .bar { background: rgba(0, 0, 0, 0.45); border-radius: 0; }
+body.ingame .petrow .bar i { border-radius: 0; }
+body.ingame .petrow.farming { background: linear-gradient(90deg, rgba(8, 10, 14, 0.7), rgba(8, 10, 14, 0.15)); box-shadow: inset 2px 0 0 var(--genus); }
+body.ingame .petlist .group { font: 400 14px var(--serif); color: var(--ink-2); }
+body.ingame .petlist .group.g-farm { color: var(--gold); }
+body.ingame h3 { font: 400 16px var(--serif); color: #ffffff; letter-spacing: 0.01em; }
+body.ingame .stat { background: linear-gradient(180deg, rgba(8, 10, 14, 0.66), rgba(8, 10, 14, 0.4)); border: var(--hair); border-radius: 2px; }
+body.ingame .stat.hot .v { color: var(--gold); }
+body.ingame .area .h { color: var(--gold); }
+body.ingame .settings { background: rgba(8, 10, 14, 0.55); border: var(--hair); border-radius: 2px; padding: 0 10px; }
+body.ingame .seg { border: var(--hair); border-radius: 2px; }
+body.ingame .seg button[aria-pressed="true"] { background: var(--gold); color: #17120a; }
+body.ingame .toggle { border-radius: 2px; }
+body.ingame .toggle::after { border-radius: 1px; }
+body.ingame .btn { border-radius: 2px; background: rgba(8, 10, 14, 0.6); }
+body.ingame .btn.gold { background: var(--gold); color: #17120a; }
+body.ingame .prio button { border-radius: 2px; background: rgba(8, 10, 14, 0.5); }
+
+/* the tip, in-game: a round emblem button with a slim label, like the HUD's menu icons */
+body.ingame .tip { background: linear-gradient(90deg, rgba(8, 10, 14, 0.85), rgba(8, 10, 14, 0.55)); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 24px; }
+body.ingame .tip:hover { box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(243, 201, 105, 0.6); }
+body.ingame .tipmob { color: var(--enemy); font: 600 13px var(--ui); }
+body.ingame .tipsub { color: #ffffff; text-shadow: 0 1px 2px #000; }
+body.ingame .t1 { justify-content: flex-start; }

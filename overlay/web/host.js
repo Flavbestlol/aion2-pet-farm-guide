@@ -1,0 +1,698 @@
+// Farm Guide Overlay: the host page. It stands in for A2 Tools' SDK (window.a2) so the same guide
+// code runs here, in a transparent window over the game:
+//  - game records come from the plugin's bridge.json (A2 Tools' plugin-data folder), the moment
+//    the plugin writes them;
+//  - counts and the soul log are read from the plugin's own saved files (it records; we show);
+//  - our own settings and route position live in the overlay's folder;
+//  - the tip and the guide float anywhere on screen; everything else lets clicks through to the game.
+(function () {
+  "use strict";
+  const T = window.__TAURI__;
+  const invoke = (cmd, args) => T.core.invoke(cmd, args);
+  const listen = (ev, fn) => T.event.listen(ev, fn);
+  const $ = (s) => document.querySelector(s);
+
+  // ── window.a2, as the guide expects it ─────────────────────────────
+  const handlers = {};
+  const fire = (ev, data, meta = {}) => {
+    for (const fn of handlers[ev] || []) {
+      try { fn(data, { character: meta.character ?? null, at: meta.at ?? null }); } catch (e) { console.error(e); }
+    }
+  };
+  // the plugin's records: counts, soul log, which server was played last
+  const FROM_PLUGIN = /^(pets-|log-|last$)/;
+  const read = async (scope, key) => {
+    const t = await invoke("read_file", { scope, key }).catch(() => null);
+    if (t == null || t === "") return null;
+    try { return JSON.parse(t); } catch { return null; }
+  };
+  window.a2 = Object.freeze({
+    on(ev, fn) { (handlers[ev] ||= []).push(fn); },
+    storage: Object.freeze({
+      async get(key) {
+        if (FROM_PLUGIN.test(key)) return read("plugin", key);
+        const own = await read("own", key);
+        if (own != null || key !== "prefs") return own;
+        // first start: take the plugin's choices, but start as a tip in the Apple theme
+        const p = await read("plugin", "prefs");
+        if (!p) return null;
+        for (const k of ["theme", "tip", "folded", "tipPos", "locked", "tipAuto"]) delete p[k];
+        return p;
+      },
+      async set(key, value) {
+        if (FROM_PLUGIN.test(key)) return; // the plugin owns those
+        await invoke("write_file", { scope: "own", key, value: JSON.stringify(value) });
+      },
+    }),
+    notify: async () => true,
+    window: Object.freeze({ show: async () => {}, hide: async () => {} }),
+    ready: async () => { startBridge(); return true; },
+  });
+
+  // ── the overlay's own settings, shown in the guide's Settings tab ──
+  window.FG_HOST = {
+    overlay: true,
+    defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, keepPlugin: false, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle", pluginView: "hidden" },
+    onFold: () => requestAnimationFrame(layout),
+    summary() {
+      const p = prefs();
+      const show = { front: "game in front", running: "game running", always: "always" }[p.ovShow || "front"];
+      return `shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · updates ${{ ask: "ask first", auto: "automatic", off: "off" }[p.ovUpdates || "ask"]}`;
+    },
+    settings({ row, seg, toggle, h, prefs, savePrefs }, part) {
+      if (part === "look") {
+      row("Size", "", seg("ovScale", [[0.85, "S"], [1, "M"], [1.15, "L"], [1.3, "XL"]], () => { applyLook(); layout(); }));
+      const bg = h("input");
+      bg.type = "range"; bg.min = "0"; bg.max = "0.9"; bg.step = "0.05"; bg.value = String(prefs.ovBg ?? 0.66);
+      bg.addEventListener("input", () => { prefs.ovBg = Number(bg.value); applyLook(); });
+      bg.addEventListener("change", savePrefs);
+      row("Background", "From fully clear to solid", bg);
+      row("Docked side", "Auto: the edge nearest the tip. The guide grows out of that edge", seg("ovSide", [["auto", "Auto"], ["left", "Left"], ["right", "Right"]], layout));
+      row("Layout faces", "Middle: the dial and text sit toward the centre of the screen. Edge: toward the edge it's docked to", seg("ovFace", [["middle", "Middle"], ["edge", "Edge"]], layout));
+      return;
+      }
+      row("Show", "Hidden whenever AION 2 isn't running; and, if you like, while you're in another window", seg("ovShow", [["front", "Game in front"], ["running", "Game running"], ["always", "Always"]], updateShow));
+      row("Start with Windows", "Off unless you turn it on. When on, it waits hidden until you start AION 2", toggle("ovAutostart", () => { prefs.ovAutostartAsked = true; savePrefs(); invoke("autostart", { on: !!prefs.ovAutostart }).catch(() => {}); }));
+      const upd = h("div", "btnrow");
+      const now = h("button", "btn", "Check now");
+      now.type = "button";
+      now.addEventListener("click", () => checkUpdates(true));
+      upd.append(seg("ovUpdates", [["ask", "Ask first"], ["auto", "Automatic"], ["off", "Off"]], () => { if (prefs.ovUpdates !== "off") checkUpdates(false); }), now);
+      row("Updates", `From the project's GitHub page, signed by the publisher. ${updStatus}`, upd);
+      row("A2 Tools window", "While the overlay runs. Hidden: out of the way, still recording. Card: a small recording card. Full: the whole guide", seg("pluginView", [["hidden", "Hidden"], ["card", "Card"], ["full", "Full"]], beat));
+      const k = h("span", "chip-stat", "Ctrl+Alt+L");
+      row("Lock / unlock", "Same keys as A2 Tools, and they lock together. Locked: clicks go through to the game, except the padlock: click it to unlock", k);
+      const btns = h("div", "btnrow");
+      const reset = h("button", "btn", "Reset position");
+      reset.type = "button";
+      reset.addEventListener("click", () => { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); });
+      const quit = h("button", "btn", "Close overlay");
+      quit.type = "button";
+      quit.addEventListener("click", () => shutdown());
+      btns.append(reset, quit);
+      row("Overlay", `Version ${VERSION}`, btns);
+    },
+  };
+  const VERSION = "1.14.0";
+
+  // ── a card in the middle of the screen: questions and news from the overlay itself ──
+  // One at a time; it takes the mouse while it's up (see hits).
+  let cardEl = null, cardQueue = [];
+  function card(spec) {
+    if (cardEl) { cardQueue.push(spec); return; }
+    const el = document.createElement("div");
+    el.className = "ovcard" + (spec.tone ? ` ${spec.tone}` : "") + (spec.always ? " always" : "");
+    el.setAttribute("role", "dialog");
+    const t = document.createElement("div"); t.className = "oc-t"; t.textContent = spec.title;
+    const b = document.createElement("div"); b.className = "oc-b";
+    for (const line of [].concat(spec.body || [])) { const p = document.createElement("p"); p.textContent = line; b.append(p); }
+    const prog = document.createElement("div"); prog.className = "oc-prog"; prog.hidden = true; prog.innerHTML = "<i></i>";
+    const status = document.createElement("div"); status.className = "oc-s";
+    const btns = document.createElement("div"); btns.className = "oc-btns";
+    for (const [label, fn, primary] of spec.buttons || [["OK", null, true]]) {
+      const x = document.createElement("button"); x.type = "button"; x.className = "oc-btn" + (primary ? " primary" : ""); x.textContent = label;
+      x.addEventListener("click", async () => { const keep = fn ? await fn(api) : false; if (!keep) api.close(); });
+      btns.append(x);
+    }
+    el.append(t, b, prog, status, btns);
+    if (spec.foot) { const f = document.createElement("div"); f.className = "oc-f"; f.textContent = spec.foot; el.append(f); }
+    document.body.append(el);
+    const api = {
+      el, always: !!spec.always, status(text, err) { status.textContent = text || ""; status.classList.toggle("err", !!err); },
+      progress(k) { prog.hidden = k == null; prog.firstChild.style.width = `${Math.round(Math.min(1, k || 0) * 100)}%`; },
+      busy(on) { for (const x of btns.children) x.disabled = !!on; },
+      close() { el.classList.add("out"); setTimeout(() => { el.remove(); if (cardEl === api) { cardEl = null; const n = cardQueue.shift(); if (n) card(n); } sendHits(); }, 260); },
+    };
+    cardEl = api;
+    requestAnimationFrame(() => { el.classList.add("in"); sendHits(); });
+    return api;
+  }
+  const savePrefsNow = () => { const p = prefs(); a2.storage.set("prefs", p); };
+
+  // ── start with Windows: only if you say so ──
+  // Earlier versions turned it on by themselves. Now nothing is set until you answer once.
+  function askAutostart() {
+    card({
+      title: "Start with Windows?",
+      body: ["Farm Guide Overlay can start when you sign in to Windows and wait, hidden, until you play AION 2.", "It does nothing else in the background."],
+      foot: "You can change this any time in Settings › Overlay.",
+      buttons: [
+        ["Yes, start with Windows", () => { const p = prefs(); p.ovAutostart = true; p.ovAutostartAsked = true; savePrefsNow(); invoke("autostart", { on: true }).catch(() => {}); }, true],
+        ["No thanks", () => { const p = prefs(); p.ovAutostart = false; p.ovAutostartAsked = true; savePrefsNow(); invoke("autostart", { on: false }).catch(() => {}); }],
+      ],
+    });
+  }
+
+  // ── after the installer: it adds the plugin to A2 Tools, and the rest finishes here (see setup.rs) ──
+  // A2 Tools was open (its settings can't be changed then) or isn't installed yet: say what to do,
+  // and carry on by ourselves once it's done.
+  let setupShown = "", waitCard = null;
+  async function setupCheck() {
+    const s = String(await invoke("plugin_setup").catch(() => "none"));
+    const again = (ms) => setTimeout(setupCheck, ms);
+    if (s === "waiting") {
+      if (setupShown !== "waiting") {
+        setupShown = "waiting";
+        waitCard = card({
+          always: true,
+          title: "One last step",
+          body: ["Close the A2 Tools DPS Meter for a moment, so the guide can add itself to it.", "Then start the meter again. This happens only once."],
+          buttons: [["OK", () => { waitCard = null; }, true]],
+        });
+      }
+      again(3000);
+    } else if (s === "nometer") {
+      if (!setupShown) {
+        setupShown = "nometer";
+        card({
+          always: true,
+          title: "Get the A2 Tools DPS Meter",
+          body: ["The guide runs inside the free A2 Tools DPS Meter, which isn't on this PC yet.", "Install it and start it once. The guide finishes setting itself up after that."],
+          buttons: [["Open a2tools.app", () => { invoke("open_link", { url: "https://a2tools.app" }).catch(() => {}); }, true], ["Later", null]],
+        });
+      }
+      again(10000);
+    } else if (s.startsWith("added")) {
+      if (waitCard) { waitCard.close(); waitCard = null; }
+      card({
+        always: true,
+        title: "The guide is in A2 Tools",
+        body: ["Start the A2 Tools DPS Meter again: the guide opens with it.", "Then log in to your character. The game sends your pet levels only at login."],
+        buttons: s === "added:start" ? [["Start A2 Tools", () => { invoke("start_meter").catch(() => {}); }, true], ["Later", null]] : [["OK", null, true]],
+      });
+    } else if (s.startsWith("failed:")) {
+      card({
+        always: true, tone: "warn",
+        title: "Couldn't add the guide to A2 Tools",
+        body: [s.slice(7), "Add it by hand: in A2 Tools, Settings › Plugins, turn on Plugin developer mode, click Load plugin folder… and pick the farm-guide folder inside the guide's install folder."],
+      });
+    }
+    return s;
+  }
+  // what you chose in the installer ("Start with Windows"), taken once as your answer
+  async function fromInstaller() {
+    const inst = await read("own", "installer");
+    if (!inst) return null;
+    const p = prefs();
+    if (typeof inst.autostart === "boolean") { p.ovAutostart = inst.autostart; p.ovAutostartAsked = true; savePrefsNow(); }
+    invoke("write_file", { scope: "own", key: "installer", value: "" }).catch(() => {});
+    return inst;
+  }
+
+  // ── updates: from the project's GitHub Releases, signed by the publisher (see update.rs) ──
+  const newer = (a, b) => {
+    const pa = String(a || "").split(".").map(Number), pb = String(b || "").split(".").map(Number);
+    for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0); }
+    return false;
+  };
+  let updStatus = "", updBusy = false, updDismissed = false, progressCard = null;
+  listen("update-progress", (e) => {
+    const d = e.payload || {};
+    if (progressCard && d.total) progressCard.progress(d.got / d.total);
+  });
+  async function checkUpdates(manual) {
+    const mode = prefs().ovUpdates || "ask";
+    if (updBusy || (!manual && mode === "off")) return;
+    let r;
+    try { r = await invoke("update_check"); }
+    catch (e) {
+      updStatus = `Couldn't check: ${String(e).replace(/^Error: /, "")}`;
+      if (manual) card({ title: "Couldn't check for updates", body: [updStatus.replace("Couldn't check: ", "")], tone: "warn" });
+      return;
+    }
+    a2.storage.set("updatefeed", r.feed).catch(() => {});
+    const f = r.feed || {};
+    const ov = f.overlay && newer(f.overlay.version, VERSION) ? f.overlay.version : null;
+    const pl = r.plugin && f.plugin && newer(f.plugin.version, r.plugin.version) ? { from: r.plugin.version, to: f.plugin.version } : null;
+    if (!ov && !pl) {
+      updStatus = `Up to date (${VERSION}).`;
+      if (manual) card({ title: "You're up to date", body: [`Overlay ${VERSION}${r.plugin ? ` · plugin ${r.plugin.version}` : ""}.`] });
+      return;
+    }
+    updStatus = `New: ${[ov && `overlay ${ov}`, pl && `plugin ${pl.to}`].filter(Boolean).join(", ")}.`;
+    if (!manual && updDismissed) return;
+    if (mode === "auto" && !manual) return installUpdates(ov, pl, f, null);
+    const lines = [];
+    if (ov) lines.push(`Overlay ${VERSION} → ${ov}`);
+    if (pl) lines.push(`Plugin ${pl.from} → ${pl.to}`);
+    if (f.notes) lines.push(String(f.notes).slice(0, 400));
+    card({
+      title: "An update is ready",
+      body: lines,
+      foot: "Downloaded from the project's GitHub page and checked against the publisher's signature.",
+      buttons: [
+        ["Update now", (c) => { installUpdates(ov, pl, f, c); return true; }, true],
+        ["Later", () => { updDismissed = true; }],
+      ],
+    });
+  }
+  // the plugin first (its files, in the folder A2 Tools loads it from), then the overlay (a restart)
+  async function installUpdates(ov, pl, f, c) {
+    if (updBusy) return;
+    updBusy = true;
+    progressCard = c;
+    try {
+      if (c) c.busy(true);
+      if (pl) {
+        if (c) { c.status("Updating the plugin…"); c.progress(0); }
+        await invoke("update_plugin");
+        if (!ov) {
+          updBusy = false;
+          if (c) c.close();
+          return pluginUpdatedCard(pl.to);
+        }
+        a2.storage.set("pluginupdated", pl.to).catch(() => {});
+      }
+      if (ov) {
+        if (c) { c.status("Downloading the overlay…"); c.progress(0); }
+        await invoke("update_overlay");
+        const p = prefs(); p.ovLastVersion = VERSION; savePrefsNow();
+        if (c) c.status("Restarting…");
+        // automatic: restart now if you're not playing; otherwise ask
+        if (c || !game.running) return setTimeout(() => invoke("update_restart").catch(() => {}), c ? 600 : 0);
+        card({
+          title: `Overlay ${ov} is ready`,
+          body: ["It restarts in a second, and you're back where you were."],
+          buttons: [["Restart now", () => { invoke("update_restart").catch(() => {}); }, true], ["After I play", () => { restartWhenIdle = true; }]],
+        });
+      }
+    } catch (e) {
+      const msg = String(e).replace(/^Error: /, "");
+      if (c) { c.status(msg, true); c.busy(false); c.progress(null); }
+      else updStatus = `Update failed: ${msg}`;
+    } finally {
+      updBusy = false;
+      progressCard = null;
+    }
+  }
+  let restartWhenIdle = false;
+  function pluginUpdatedCard(v) {
+    card({
+      title: `Plugin updated to ${v}`,
+      body: ["A2 Tools picks it up when you click Check for updates (Settings › Plugins), or the next time it starts."],
+    });
+  }
+  // after a restart: what changed
+  async function afterUpdate() {
+    const p = prefs();
+    if (p.ovLastVersion && p.ovLastVersion !== VERSION) {
+      const f = await read("own", "updatefeed");
+      const pv = await read("own", "pluginupdated");
+      card({
+        title: `Updated to ${VERSION}`,
+        body: [f && f.notes ? String(f.notes).slice(0, 400) : "The overlay is up to date.", ...(pv ? [`The plugin was updated to ${pv} too: in A2 Tools, Settings › Plugins › Check for updates.`] : [])],
+      });
+      a2.storage.set("pluginupdated", null).catch(() => {});
+    }
+    p.ovLastVersion = VERSION;
+    savePrefsNow();
+  }
+  const prefs = () => (window.FG_prefs ? window.FG_prefs() : {});
+  function applyLook() {
+    const p = prefs();
+    document.documentElement.style.setProperty("--ov-scale", String(p.ovScale || 1));
+    document.documentElement.style.setProperty("--ov-bg", String(p.ovBg ?? 0.66));
+  }
+  // How a zoomed element's left/top map to the screen depends on the engine's zoom rules:
+  // measure it once per scale instead of assuming.
+  // Measured on a probe: a hidden fixed box with the same zoom and nothing else, so a fold or pop-in
+  // animation (transforms) or a measure taken before the zoom applied can't skew it. Measuring the
+  // guide itself once cached 1 at XL, and a guide or tip docked right then hung off the screen.
+  const kCache = {};
+  let probe = null;
+  function placeK(_el, z) {
+    if (z === 1) return 1;
+    if (kCache[z]) return kCache[z];
+    if (!probe) {
+      probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;top:0;left:0;width:10px;height:10px;visibility:hidden;pointer-events:none;zoom:var(--ov-scale)";
+      document.body.append(probe);
+    }
+    probe.style.left = "0px";
+    const a = probe.getBoundingClientRect().left;
+    probe.style.left = "100px";
+    const b = probe.getBoundingClientRect().left;
+    const k = (b - a) / 100;
+    if (!(k > 0.2) || Math.abs(k - 1) < 1e-3) return z; // the zoom not applied yet: assume it, measure next time
+    return (kCache[z] = k);
+  }
+
+  // ── where the tip sits; the guide opens from it toward the middle of the screen ──
+  const DEFAULT_ANCHOR = { fx: 0.03, fy: 0.36 }; // left side, above the chat: open space in AION 2's HUD
+  let anchor = { ...DEFAULT_ANCHOR };
+  const saveAnchor = () => invoke("write_file", { scope: "own", key: "anchor", value: JSON.stringify(anchor) }).catch(() => {});
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ICON = 25; // from the tip's edge to its icon's centre, in CSS px before scaling
+  let tipBox = null;
+  let frameH = 0; // the guide tab's height on screen, last seen: where the header goes on every tab // the tip's last measured size on screen [w, h], kept while it is hidden
+  function layout() {
+    const tip = $(".tip"), app = $("#app"), toasts = $("#toasts");
+    if (!tip || !app) return;
+    applyLook();
+    const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1);
+    const ax = clamp(anchor.fx, 0, 1) * W, ay = clamp(anchor.fy, 0, 1) * H;
+    const side = prefs().ovSide || "auto";
+    const right = side === "auto" ? ax > W / 2 : side === "right", bottom = ay > H / 2;
+    tip.classList.toggle("flip", right);
+    // the layout faces the other way from the edge it's docked to: docked left, it reads from the
+    // middle of the screen (dial and text toward the centre); docked right, the opposite
+    document.body.classList.toggle("side-right", (prefs().ovFace || "middle") === "edge" ? right : !right);
+    // zoomed elements take left/top in their own (zoomed) units.
+    // The tip's size comes from its layout box, never its on-screen box: while it pops in (scale .6→1)
+    // or is hovered (1.04) the on-screen box is the wrong size, and a tip docked right was placed by
+    // that smaller width and hung off the screen until its text next changed.
+    if (tip.offsetWidth) tipBox = [tip.offsetWidth * z, tip.offsetHeight * z];
+    const [tw, th] = tipBox || [220 * z, 52 * z];
+    const tl = clamp(right ? ax + ICON * z - tw : ax - ICON * z, 6, W - tw - 6);
+    const tt = clamp(ay - th / 2, 6, H - th - 6);
+    const tk = placeK(tip, z), k = tk;
+    tip.style.left = `${tl / tk}px`;
+    tip.style.top = `${tt / tk}px`;
+    // The guide's height decides where the header sits, on every tab: Pets / Stats / Settings fit
+    // under that same header (scrolling inside) instead of moving it. Placed by their own (fixed)
+    // height, the header and tabs jumped up or down when you left the guide tab, by up to 200 px.
+    const onGuide = (document.body.dataset.tab || "guide") === "guide";
+    if (onGuide) app.style.maxHeight = "";
+    const pw = app.offsetWidth * z, ah = app.offsetHeight * z;
+    if (onGuide && ah > 0) frameH = ah;
+    const ph = frameH || ah;
+    const pl = clamp(right ? ax + ICON * z - pw : ax - ICON * z, 8, W - pw - 8);
+    const pt = clamp(bottom ? ay + ICON * z - ph : ay - ICON * z, 8, H - ph - 8);
+    if (!onGuide) {
+      const room = Math.max(240 * z, H - 8 - pt) / z; // the sheet: down to the screen's edge at most
+      if (app.style.maxHeight !== `${room}px`) app.style.maxHeight = `${room}px`;
+    }
+    const bh = app.offsetHeight * z; // what's on screen now, for the messages at its bottom
+    app.style.left = `${pl / k}px`;
+    app.style.top = `${pt / k}px`;
+    // the guide grows out of the tip and shrinks back into it
+    app.style.setProperty("--tip-x", `${(ax - pl) / z}px`);
+    app.style.setProperty("--tip-y", `${(ay - pt) / z}px`);
+    // messages sit at the bottom inside the guide
+    if (toasts) {
+      toasts.style.left = `${pl + 10 * z}px`;
+      toasts.style.width = `${pw - 20 * z}px`;
+      toasts.style.right = "auto";
+      toasts.style.bottom = `${H - (pt + bh) + 10 * z}px`;
+    }
+    sendHits();
+  }
+  addEventListener("resize", layout);
+
+  // ── dragging the tip or the guide's header moves both ──
+  let drag = null, justDragged = false;
+  function startDrag(e, kind) {
+    if (e.button !== 0 || (window.FG_isLocked && window.FG_isLocked())) return;
+    drag = { kind, x: e.clientX, y: e.clientY, fx: anchor.fx, fy: anchor.fy, moved: false, id: e.pointerId, el: e.currentTarget };
+  }
+  function moveDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (e.buttons === 0) return endDrag(e); // the button came up somewhere we didn't hear (Alt+Tab, Win key)
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      try { drag.el.setPointerCapture(drag.id); } catch {}
+      document.body.classList.add("dragging");
+      lastHits = ""; // while dragging the whole window takes the mouse
+      invoke("set_capture", { on: true }).catch(() => {});
+    }
+    anchor = { fx: clamp(drag.fx + dx / innerWidth, 0, 1), fy: clamp(drag.fy + dy / innerHeight, 0, 1) };
+    layout();
+  }
+  function endDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (drag.moved) {
+      snapToEdge();
+      justDragged = true;
+      setTimeout(() => { justDragged = false; }, 0);
+      saveAnchor();
+      document.body.classList.remove("dragging");
+      invoke("set_capture", { on: false }).catch(() => {});
+    }
+    drag = null;
+  }
+  // let go near a screen edge: the tip settles against it, with a little spring
+  function snapToEdge() {
+    const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1);
+    const m = (ICON + 8) * z, near = 48 * z;
+    const x = anchor.fx * W, y = anchor.fy * H;
+    let nx = x, ny = y;
+    if (x < m + near) nx = m;
+    else if (x > W - m - near) nx = W - m;
+    if (y < 34 * z + near) ny = 34 * z;
+    else if (y > H - 34 * z - near) ny = H - 34 * z;
+    if (nx === x && ny === y) return;
+    anchor = { fx: nx / W, fy: ny / H };
+    document.body.classList.add("snapping");
+    layout();
+    setTimeout(() => document.body.classList.remove("snapping"), 450);
+  }
+  function bindDrag() {
+    const tip = $(".tip"), top = $(".top");
+    tip.addEventListener("pointerdown", (e) => startDrag(e, "tip"));
+    top.addEventListener("pointerdown", (e) => { if (!e.target.closest("button, input")) startDrag(e, "panel"); });
+    // the whole window listens: a fast drag leaves the tip or header before the capture takes hold
+    addEventListener("pointermove", moveDrag);
+    addEventListener("pointerup", endDrag);
+    addEventListener("pointercancel", endDrag);
+    addEventListener("lostpointercapture", endDrag);
+    addEventListener("blur", () => { if (drag) endDrag({ pointerId: drag.id }); });
+    // a drag that ends on the tip is not a click
+    tip.addEventListener("click", (e) => { if (justDragged) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  }
+
+  // ── only while AION 2 runs (and is in front, by default) ──
+  let game = { running: true, front: true }, shown = true, hideTimer = 0;
+  function wantShown() {
+    const how = prefs().ovShow || "front";
+    return how === "always" || (game.running && (how === "running" || game.front));
+  }
+  function updateShow() {
+    const want = wantShown();
+    clearTimeout(hideTimer);
+    if (want) return setShown(true);
+    // a short grace, so Alt+Tab past it or a click on A2 Tools doesn't make it blink
+    hideTimer = setTimeout(() => setShown(wantShown()), game.running ? 1200 : 0);
+  }
+  function setShown(on) {
+    if (on === shown) return;
+    shown = on;
+    document.body.classList.toggle("nogame", !on);
+    invoke("set_showing", { on }).catch(() => {});
+    if (on) requestAnimationFrame(layout);
+    sendHits();
+  }
+  let recapDone = false;
+  function maybeRecap() {
+    if (recapDone || !window.FG_recap) return;
+    recapDone = true;
+    setTimeout(() => { try { window.FG_recap(); } catch (e) { console.warn(e); } }, 2500);
+  }
+  listen("game", (e) => {
+    const [running, front] = e.payload || [true, true];
+    if (!running) recapDone = false; // the next game start gets its own recap
+    game = { running: !!running, front: !!front };
+    if (!running && restartWhenIdle) invoke("update_restart").catch(() => {});
+    updateShow();
+    if (running && front) maybeRecap();
+  });
+
+  // ── click-through: tell the window which parts take the mouse ──
+  let lastHits = "";
+  function hits() {
+    const out = [];
+    const add = (el) => {
+      if (!el || el.hidden || el.offsetParent === null && getComputedStyle(el).position !== "fixed") return;
+      const r = el.getBoundingClientRect();
+      if (r.width > 1 && r.height > 1) out.push([Math.floor(r.left), Math.floor(r.top), Math.ceil(r.width), Math.ceil(r.height)]);
+    };
+    // a setup card shows (and takes clicks) even before the game runs
+    if (cardEl && (shown || cardEl.always)) add(cardEl.el);
+    if (!shown) return out; // hidden: the whole screen belongs to the game
+    const folded = window.FG_isFolded ? window.FG_isFolded() : true;
+    const locked = window.FG_isLocked ? window.FG_isLocked() : false;
+    if (locked) add(folded ? $(".tip") : $(".lockbtn")); // locked: only the padlock (open) or the tip (folded) takes a click
+    else if (folded) add($(".tip"));
+    else if (document.body.classList.contains("hud") && document.body.dataset.tab === "guide") {
+      // no card: only the floating parts take the mouse; the gaps between them belong to the game
+      for (const sel of [".top", ".tabs", ".dial", ".info", ".travel", ".suggest", ".notice", ".ovnotice", ".mapwrap", ".mapbar", ".loot .ticker"]) add($(sel));
+      if (window.FG_stopsOpen && window.FG_stopsOpen()) add($(".stoplist"));
+      for (const q of document.querySelectorAll(".qcell")) add(q);
+      for (const t of document.querySelectorAll("#toasts .toast")) add(t);
+    } else {
+      add($("#app"));
+      for (const t of document.querySelectorAll("#toasts .toast")) add(t);
+    }
+    return out;
+  }
+  function sendHits() {
+    const h = hits();
+    // the padlock always takes a click (it unlocks); everything else is click-through while locked
+    const altOnly = false;
+    const s = JSON.stringify([h, altOnly]);
+    if (s === lastHits) return;
+    lastHits = s;
+    invoke("set_hits", { rects: h, altOnly }).catch(() => {});
+  }
+  setInterval(sendHits, 150);
+
+  // ── links (Ko-fi, credits): open in the browser, never inside the overlay ──
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a) return;
+    e.preventDefault();
+    if (/^https:\/\//.test(a.href)) invoke("open_link", { url: a.href }).catch(() => {});
+  }, true);
+
+  // ── typing (Pets search): the window takes focus only while a field is in use ──
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("input[type=search], input[type=number]")) invoke("set_focus", { on: true }).catch(() => {});
+  }, true);
+  document.addEventListener("focusout", (e) => {
+    if (e.target.matches && e.target.matches("input")) invoke("set_focus", { on: false }).catch(() => {});
+  });
+
+  // ── the plugin's records ──────────────────────────────────────────
+  // Events are delivered once: by seq within one plugin run; across a plugin restart (new run id,
+  // seq may start again) by time. Anything older than our start is already in the saved counts.
+  let cursor = null, run = null, lastAt = Date.now() - 1000, lastEventAt = 0;
+  function deliver(e) {
+    lastAt = Math.max(lastAt, Number(e.at) || 0);
+    lastEventAt = Date.now();
+    if (e.ev === "character") fire("character", e.data);
+    else fire(e.ev, e.data, { character: e.character, at: e.at });
+  }
+  function onBridge(text) {
+    let b;
+    try { b = JSON.parse(text); } catch { return; } // caught mid-write: the next change brings it whole
+    if (!b || !Number.isFinite(b.seq)) return;
+    const list = Array.isArray(b.events) ? b.events : [];
+    if (cursor === null) {
+      cursor = b.seq;
+      run = b.run ?? null;
+      if (b.character) fire("character", b.character);
+      for (const e of list) if (Number(e.at) > lastAt) deliver(e); // arrived while we were starting
+      return;
+    }
+    if ((b.run ?? null) !== run || b.seq < cursor) {
+      run = b.run ?? null;
+      for (const e of list) if (Number(e.at) > lastAt) deliver(e);
+      cursor = b.seq;
+    } else {
+      for (const e of list) if (e.seq > cursor) deliver(e);
+      cursor = b.seq;
+    }
+    scheduleResync(1500);
+  }
+  // the plugin is the record: after it saves, take its counts and log if ours drifted
+  let resyncTimer = 0;
+  function scheduleResync(ms) {
+    clearTimeout(resyncTimer);
+    resyncTimer = setTimeout(resync, ms);
+  }
+  async function resync() {
+    if (Date.now() - lastEventAt < 2500) return scheduleResync(2500); // the plugin may not have saved the latest yet
+    const k = window.FG_key ? window.FG_key() : null;
+    if (!k || !window.FG_adopt) return;
+    const [p, l] = await Promise.all([read("plugin", `pets-${k}`), read("plugin", `log-${k}`)]);
+    window.FG_adopt(k, p, l);
+  }
+  async function startBridge() {
+    const t = await invoke("read_file", { scope: "plugin", key: "bridge" }).catch(() => null);
+    if (t) onBridge(t);
+    await listen("bridge", (e) => onBridge(String(e.payload || "")));
+    setInterval(resync, 15000);
+    setInterval(checkPlugin, 5000);
+    checkPlugin();
+  }
+
+  // ── is the plugin running in A2 Tools? ──
+  async function checkPlugin() {
+    // alive if it beat lately, or recorded something lately (Windows slows a background window's timers
+    // to about once a minute, but recording runs on game events)
+    // and a plugin that hid itself for us is fine: hidden, its timers sleep but game events still
+    // wake it to record (it beat at least once after hiding, so it was running then)
+    const [b, br, hid] = await Promise.all([read("plugin", "pluginbeat"), read("plugin", "bridge"), read("plugin", "hidbyus")]);
+    const fresh = (o) => !!o && Date.now() - Number(o.at) < 75000;
+    const hiddenOk = typeof hid === "number" && hid > 0 && !!b && Number(b.at) >= hid - 1000;
+    const ok = fresh(b) || fresh(br) || hiddenOk;
+    const n = $(".ovnotice");
+    if (n) n.hidden = ok;
+    document.body.classList.toggle("noplugin", !ok);
+  }
+
+  // ── our heartbeat: while we run, the plugin shows a small recording card and stays quiet ──
+  function beat() {
+    const p = prefs();
+    const view = p.pluginView || (p.keepPlugin ? "full" : "hidden");
+    invoke("write_file", { scope: "plugin", key: "overlay", value: JSON.stringify({ at: Date.now(), v: VERSION, pluginView: view, keepPlugin: view === "full" }) }).catch(() => {});
+  }
+  setInterval(beat, 2000);
+  async function shutdown() {
+    await invoke("write_file", { scope: "plugin", key: "overlay", value: JSON.stringify({ at: 0, v: VERSION }) }).catch(() => {});
+    invoke("quit").catch(() => {});
+  }
+
+  // ── keys and tray ─────────────────────────────────────────────────
+  // Ctrl+Alt+L: A2 Tools toggles its own lock on the same keys; the host reads its new state so both
+  // always agree (null when it can't tell: then we just toggle)
+  listen("hotkey-lock", (e) => {
+    const want = e.payload;
+    const now = window.FG_isLocked ? window.FG_isLocked() : false;
+    if (window.FG_toggleLock && (typeof want !== "boolean" || want !== now)) window.FG_toggleLock();
+    sendHits();
+  });
+  listen("tray", (e) => {
+    const a = String(e.payload || "");
+    if (a === "open") window.FG_fold && window.FG_fold(false);
+    if (a === "lock") window.FG_toggleLock && window.FG_toggleLock();
+    if (a === "reset") { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); }
+    if (a === "quit") shutdown();
+    if (a === "update") checkUpdates(true);
+    sendHits();
+  });
+
+  // ── start ─────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", async () => {
+    document.body.classList.add("ov");
+    const a = await read("own", "anchor");
+    if (a && Number.isFinite(a.fx) && Number.isFinite(a.fy)) anchor = a;
+    bindDrag();
+    beat();
+    setTimeout(() => {
+      const p = prefs();
+      if (p.ovV !== 2) { p.ovV = 2; p.theme = "hud"; window.FG_applyPrefs && window.FG_applyPrefs(); a2.storage.set("prefs", p); }
+    }, 200);
+    const gs = await invoke("game_state").catch(() => null);
+    if (Array.isArray(gs)) game = { running: !!gs[0], front: !!gs[1] };
+    setTimeout(async () => {
+      updateShow();
+      if (game.running && game.front) maybeRecap();
+      const inst = await fromInstaller().catch(() => null);
+      const st = await setupCheck().catch(() => "none");
+      if (inst && st === "none") {
+        card({
+          always: true,
+          title: "The guide is ready",
+          body: ["It appears over AION 2 while you play: a small tip you can drag anywhere. Click it to open the guide.", "It waits in the tray (bottom right of the taskbar) until then."],
+          buttons: [["Got it", null, true]],
+        });
+      }
+      const p = prefs();
+      // start with Windows only when you chose it; earlier versions turned it on by themselves
+      if (!p.ovAutostartAsked) { invoke("autostart", { on: false }).catch(() => {}); askAutostart(); }
+      else invoke("autostart", { on: !!p.ovAutostart }).catch(() => {}); // keeps the entry pointing at this exe
+      afterUpdate();
+    }, 300);
+    // updates: a look a little after start, then every 6 hours
+    setTimeout(() => checkUpdates(false), 20000);
+    setInterval(() => checkUpdates(false), 6 * 3600 * 1000);
+    // layout once the guide has rendered, then keep the tip's place as its text changes
+    const ro = new ResizeObserver(() => layout());
+    ro.observe($(".tip"));
+    ro.observe($("#app"));
+    setTimeout(layout, 50);
+    setTimeout(layout, 600);
+  });
+})();
