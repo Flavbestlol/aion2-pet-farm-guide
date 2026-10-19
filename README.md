@@ -161,7 +161,6 @@ Here is exactly what each part does:
 - **The plugin** runs in the meter's sandbox. It has no network access. It reads only your own game data: which character you're on (so each one keeps its own progress), your pets' levels, the souls you get, the level-ups, and the id of the map you load. It never sees chat or other players' data. Everything it saves stays on your PC.
 - **The overlay** never touches the game. It reads the plugin's saved files and writes its own settings. Its only network use is the update check: it downloads a small file from this repository's releases. **It sends nothing about you.**
 - **The setup** changes one thing outside its own folder: the meter's plugin list. It turns on *Plugin developer mode* and adds the guide's `farm-guide` folder, as you would by hand, and keeps a copy of the meter's settings as they were (`settings.json.farm-guide-backup`, next to them). Uninstalling takes the folder out again.
-- **Updates can't be faked.** The overlay installs an update only if it carries this project's signature and every file matches it, so nobody else can slip you a fake one.
 - **It's open.** All the code is in this repository: read it, or build it yourself.
 
 > [!NOTE]
@@ -222,7 +221,6 @@ It's locked. Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd>, or click the
 Built on the work of others. Thank you:
 
 - **[A2 Tools DPS Meter](https://github.com/taengu/A2Tools-DPS-Meter)** by **taengu** ([a2tools.app](https://a2tools.app)): the meter, its plugin system, and the game-data decoders. The plugin's decoders come from the official [Pet Soul Tracker](https://github.com/taengu/A2Tools-Plugins).
-- **[A2 Tools plugins](https://github.com/taengu/A2Tools-Plugins)**: pet names in ten languages, teleport numbers, where dungeon souls drop, and the Rift schedule from the Event Timers plugin.
 - **Th3Ruthless**, *AION 2 Pet Farming Routes* (Elyos and Asmodian editions): the island Windstreams, the Abyss bases and entry needs, the boss and dungeon sources, and the sources that couldn't be confirmed. We took the routes and tweaked them into the guide.
 - **[MetaBot.GG](https://metabot.gg/en/aion-2)**: spawn points, monster art and drop tables.
 - **wikily.gg**: the owned effects of each pet genus.
