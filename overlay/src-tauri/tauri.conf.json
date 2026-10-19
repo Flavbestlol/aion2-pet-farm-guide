@@ -1,9 +1,27 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Farm Guide Overlay",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "identifier": "app.farmguide.overlay",
-  "build": { "frontendDist": "../ui" },
-  "app": { "withGlobalTauri": true, "windows": [], "security": { "csp": null } },
-  "bundle": { "active": false, "icon": ["icons/icon.ico", "icons/icon.png"] }
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "publisher": "Flavbest",
+    "copyright": "GPL-3.0. AION 2 Pet Farm Guide by Flavbest",
+    "shortDescription": "AION 2 Pet Farm Guide overlay",
+    "longDescription": "Shows the AION 2 Pet Farm Guide over the game."
+  }
 }

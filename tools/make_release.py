@@ -21,7 +21,7 @@ from pathlib import Path
 REPO = "Flavbestlol/aion2-pet-farm-guide"
 PLUGIN_TYPES = {".html", ".js", ".css", ".json", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".md", ".txt"}
 MAX_PLUGIN = 8 * 1024 * 1024  # A2 Tools' catalog limit
-OVERLAY_FILES = ["Farm Guide Overlay.exe", "WebView2Loader.dll", "README.txt", "Update Overlay.cmd"]
+OVERLAY_FILES = ["Farm Guide Overlay.exe", "README.txt"]
 
 
 def sha256(p):
@@ -91,8 +91,7 @@ def main():
             payload = Path(tmp)
             with zipfile.ZipFile(pzip) as z:
                 z.extractall(payload)
-            for name in ("Farm Guide Overlay.exe", "WebView2Loader.dll"):
-                shutil.copy2(overlay / name, payload / name)
+            shutil.copy2(overlay / "Farm Guide Overlay.exe", payload / "Farm Guide Overlay.exe")
             r = subprocess.run(["makensis", "-V2", f"-DVERSION={pv}", f"-DOVERLAY_VERSION={ov}", f"-DPAYLOAD={payload}",
                                 f"-DOUTFILE={setup.resolve()}", str(nsi)], capture_output=True, text=True)
             if r.returncode != 0:

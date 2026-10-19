@@ -6,8 +6,9 @@
 //! is installed only when it was signed by the publisher and every byte matches what they signed,
 //! whoever serves the files.
 //!
-//! The overlay's exe is replaced next to itself (`<name>.new.exe`, then a small script swaps it in
-//! once we've exited and starts the new one). The plugin is updated only where A2 Tools loads it from
+//! The overlay's exe is replaced next to itself: the new one is saved as `<name>.new.exe`, and it
+//! copies itself over the old one once that has exited (see update_restart).
+//! The plugin is updated only where A2 Tools loads it from
 //! a folder (developer mode): its files are rewritten in that folder, which A2 Tools reads from disk.
 //! A plugin installed from A2 Tools' own reviewed catalog is left to A2 Tools.
 //!
@@ -140,34 +141,81 @@ fn exe_paths() -> Result<(PathBuf, PathBuf), String> {
     Ok((exe, new))
 }
 
-/// Swap the waiting update in and start it: a small script waits for us to exit, moves the new exe
-/// over the old one (retrying while Windows still holds it) and starts it; then it deletes itself.
+/// Swap the waiting update in and start it. The new copy does it itself: we start it with
+/// `--finish-update <our pid> <our path>` and exit; it waits for us to be gone, copies itself over
+/// us, starts that, and exits. The next start tidies the `.new.exe` away (`tidy_after_update`).
 #[tauri::command]
 pub fn update_restart(app: AppHandle) -> Result<(), String> {
     let (exe, new) = exe_paths()?;
     if !new.is_file() {
         return Err("no update is waiting".into());
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let pid = std::process::id();
-        let script = std::env::temp_dir().join("farm-guide-overlay-update.cmd");
-        let body = format!(
-            "@echo off\r\nset \"EXE={exe}\"\r\nset \"NEW={new}\"\r\n:wait\r\ntasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\nset /a n=0\r\n:move\r\nmove /Y \"%NEW%\" \"%EXE%\" >nul 2>&1\r\nif not errorlevel 1 goto started\r\nset /a n+=1\r\nif %n% geq 20 goto started\r\nping -n 2 127.0.0.1 >nul\r\ngoto move\r\n:started\r\nstart \"\" \"%EXE%\"\r\n(goto) 2>nul & del \"%~f0\"\r\n",
-            exe = exe.display(),
-            new = new.display(),
-        );
-        std::fs::write(&script, body).map_err(|e| e.to_string())?;
-        std::process::Command::new("cmd")
-            .arg("/C")
-            .arg(&script)
-            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
-            .spawn()
-            .map_err(|e| format!("couldn't start the update ({e})"))?;
-    }
+    std::process::Command::new(&new)
+        .arg("--finish-update")
+        .arg(std::process::id().to_string())
+        .arg(&exe)
+        .spawn()
+        .map_err(|e| format!("couldn't start the update ({e})"))?;
     app.exit(0);
     Ok(())
+}
+
+/// Run by the new copy (see update_restart). `None`: not asked to; start as usual.
+pub fn cli() -> Option<i32> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) != Some("--finish-update") {
+        return None;
+    }
+    let (Some(pid), Some(target)) = (args.get(1).and_then(|p| p.parse::<u32>().ok()), args.get(2)) else { return Some(1) };
+    let target = PathBuf::from(target);
+    let me = std::env::current_exe().ok()?;
+    // only ever over the copy that started us, next to us
+    if target.parent() != me.parent() || !target.extension().is_some_and(|e| e.eq_ignore_ascii_case("exe")) {
+        return Some(1);
+    }
+    wait_for_exit(pid);
+    let mut copied = false;
+    for _ in 0..40 {
+        if std::fs::copy(&me, &target).is_ok() {
+            copied = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    // copied or not, start the overlay again (the old one if the copy failed)
+    let _ = std::process::Command::new(&target).spawn();
+    Some(if copied { 0 } else { 1 })
+}
+
+#[cfg(windows)]
+fn wait_for_exit(pid: u32) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
+    unsafe {
+        let h = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if !h.is_null() {
+            WaitForSingleObject(h, 30_000);
+            CloseHandle(h);
+        }
+    }
+}
+#[cfg(not(windows))]
+fn wait_for_exit(_pid: u32) {}
+
+/// After an update: the `.new.exe` that copied itself over us is no longer needed.
+pub fn tidy_after_update() {
+    let Ok((exe, new)) = exe_paths() else { return };
+    if exe == new || !new.is_file() {
+        return;
+    }
+    std::thread::spawn(move || {
+        for _ in 0..20 {
+            if std::fs::remove_file(&new).is_ok() || !new.exists() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    });
 }
 
 /// The plugin, rewritten in the folder A2 Tools loads it from. Every file is checked first: the zip

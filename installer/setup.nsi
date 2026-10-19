@@ -2,7 +2,7 @@
 ;
 ; Built by tools/make_release.py:
 ;   makensis -DVERSION=<plugin version> -DOVERLAY_VERSION=<overlay version> -DPAYLOAD=<folder> -DOUTFILE=<exe> setup.nsi
-; PAYLOAD holds "Farm Guide Overlay.exe", WebView2Loader.dll and farm-guide\ (the plugin).
+; PAYLOAD holds "Farm Guide Overlay.exe" and farm-guide\ (the plugin).
 ;
 ; For you only (no administrator rights): it installs to %LOCALAPPDATA%\Programs, where the overlay
 ; can also update itself. The overlay adds the plugin to A2 Tools (Farm Guide Overlay.exe --setup-register,
@@ -101,8 +101,8 @@ Section "-Farm Guide" SecMain
   Call CloseOverlay
   SetOutPath "$INSTDIR"
   File "${PAYLOAD}\${EXE}"
-  File "${PAYLOAD}\WebView2Loader.dll"
   Delete "$INSTDIR\Farm Guide Overlay.new.exe"
+  Delete "$INSTDIR\WebView2Loader.dll" ; 1.16.1 and older needed it; the overlay now carries it inside
   SetOutPath "$INSTDIR\farm-guide"
   File /r "${PAYLOAD}\farm-guide\*.*"
   SetOutPath "$INSTDIR"

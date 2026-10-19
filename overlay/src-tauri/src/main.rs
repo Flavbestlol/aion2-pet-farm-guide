@@ -142,7 +142,13 @@ fn open_link(url: String) -> Result<(), String> {
     }
     #[cfg(windows)]
     {
-        std::process::Command::new("explorer").arg(&url).spawn().map_err(|e| e.to_string())?;
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        let w = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        let (verb, target) = (w("open"), w(&url));
+        let r = unsafe { ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), target.as_ptr(), std::ptr::null(), std::ptr::null(), 1) };
+        if (r as isize) <= 32 {
+            return Err("the browser didn't open".into());
+        }
     }
     Ok(())
 }
@@ -250,18 +256,14 @@ fn watch_bridge(app: AppHandle) {
 
 #[cfg(windows)]
 mod win {
-    //! Ctrl+Alt+L: seen with a low-level keyboard hook, which only looks and never takes the keys,
-    //! so A2 Tools (which uses the same keys for its own lock) still gets them: one press locks both.
-    use std::sync::OnceLock;
-    use tauri::{AppHandle, Emitter};
-    use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS, LPARAM, LRESULT, WPARAM};
-    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    //! Windows only: the game's window, focus, the cursor, start with Windows, one copy at a time.
+    //! (No keyboard hook: Ctrl+Alt+L is A2 Tools' own key, and we follow its lock; see watch_a2_lock.)
+    use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
     use windows_sys::Win32::System::Threading::CreateMutexW;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL, VK_MENU};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, GetCursorInfo, GetForegroundWindow, GetMessageW, SetForegroundWindow, SetWindowPos,
-        SetWindowsHookExW, CURSORINFO, CURSOR_SHOWING, HWND_TOPMOST, KBDLLHOOKSTRUCT, MSG, SWP_ASYNCWINDOWPOS,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        GetCursorInfo, GetForegroundWindow, SetForegroundWindow, SetWindowPos, CURSORINFO, CURSOR_SHOWING, HWND_TOPMOST,
+        SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     };
     use std::sync::atomic::{AtomicIsize, Ordering};
 
@@ -298,8 +300,6 @@ mod win {
     pub fn alt_down() -> bool {
         unsafe { (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0 }
     }
-
-    static APP: OnceLock<AppHandle> = OnceLock::new();
 
     // ── AION 2: running, and in front? (found as A2 Tools finds it: title "AION2…" or AION2.exe) ──
     use windows_sys::Win32::Foundation::{CloseHandle, HWND};
@@ -381,47 +381,6 @@ mod win {
             }
         }
     }
-    static mut L_DOWN: bool = false;
-
-    unsafe extern "system" fn hook(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code >= 0 {
-            let k = &*(lparam as *const KBDLLHOOKSTRUCT);
-            let msg = wparam as u32;
-            if k.vkCode == 0x4C {
-                if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
-                    let ctrl = (GetAsyncKeyState(VK_CONTROL as i32) as u16 & 0x8000) != 0;
-                    let alt = (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0;
-                    if ctrl && alt && !L_DOWN {
-                        if let Some(app) = APP.get() {
-                            // A2 Tools toggles its own lock on these keys: read its new state, so both agree
-                            let app = app.clone();
-                            std::thread::spawn(move || {
-                                std::thread::sleep(std::time::Duration::from_millis(450));
-                                let _ = app.emit("hotkey-lock", crate::a2_locked());
-                            });
-                        }
-                    }
-                    L_DOWN = true;
-                } else if msg == WM_KEYUP || msg == WM_SYSKEYUP {
-                    L_DOWN = false;
-                }
-            }
-        }
-        CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam)
-    }
-
-    pub fn start_hotkey(app: AppHandle) {
-        let _ = APP.set(app);
-        std::thread::spawn(|| unsafe {
-            let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook), GetModuleHandleW(std::ptr::null()), 0);
-            if h.is_null() {
-                return;
-            }
-            let mut msg: MSG = std::mem::zeroed();
-            while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
-        });
-    }
-
     /// One overlay at a time.
     pub fn already_running() -> bool {
         let name: Vec<u16> = "Local\\FarmGuideOverlay\0".encode_utf16().collect();
@@ -444,9 +403,33 @@ pub fn a2_locked() -> Option<bool> {
     }
 }
 
+/// Ctrl+Alt+L is A2 Tools' lock key (whatever key it's set to, in fact): when A2 Tools' lock changes,
+/// it saves it to its settings, and we follow, so one press locks both. Nothing of ours reads the
+/// keyboard.
+fn watch_a2_lock(app: AppHandle) {
+    let Some(path) = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("com.a2tools.dps-meter").join("settings.json")) else { return };
+    let mut stamp: Option<SystemTime> = None;
+    let mut last = a2_locked();
+    loop {
+        std::thread::sleep(Duration::from_millis(250));
+        let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) else { continue };
+        if stamp == Some(modified) {
+            continue;
+        }
+        stamp = Some(modified);
+        let now = a2_locked();
+        if now.is_some() && now != last {
+            let _ = app.emit("hotkey-lock", now);
+        }
+        if now.is_some() {
+            last = now;
+        }
+    }
+}
+
 fn main() {
     // the installer's commands (see setup.rs) run and exit before anything else
-    if let Some(code) = setup::cli() {
+    if let Some(code) = update::cli().or_else(setup::cli) {
         std::process::exit(code);
     }
     #[cfg(windows)]
@@ -454,6 +437,7 @@ fn main() {
         return;
     }
     setup::sync_installed_version();
+    update::tidy_after_update();
     let appdata = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
     let plugin_dir = std::env::var_os("FG_PLUGIN_DIR")
         .map(PathBuf::from)
@@ -556,8 +540,8 @@ fn main() {
             std::thread::spawn(move || hit_test_loop(h));
             let h = app.handle().clone();
             std::thread::spawn(move || watch_bridge(h));
-            #[cfg(windows)]
-            win::start_hotkey(app.handle().clone());
+            let h = app.handle().clone();
+            std::thread::spawn(move || watch_a2_lock(h));
             #[cfg(windows)]
             {
                 let h = app.handle().clone();

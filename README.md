@@ -175,6 +175,16 @@ Start it with **Run as administrator**. If that doesn't help, reinstall [Npcap](
 </details>
 
 <details>
+<summary><b>My antivirus flags it, or Windows says "Windows protected your PC"</b></summary>
+
+The guide is new and not code-signed, and some antivirus programs guess wrongly about new programs that download their own updates (Microsoft Defender's guesses end in `!ml`). It's a false alarm: all the code is in this repository.
+
+- Download it **only from this page's [Releases](../../releases/latest)**, never from a re-upload.
+- Use **`Farm-Guide-Setup-….exe`**. It's the one meant to be run; the other files are for updates and by-hand installs.
+- If your antivirus still blocks it, please [open an issue](../../issues) with its name and the detection name, so it can be reported to that vendor.
+</details>
+
+<details>
 <summary><b>The setup says the meter is open</b></summary>
 
 Close the A2 Tools DPS Meter, then click **Retry**. It only needs to be closed while the guide adds itself to its plugin list, a second or two. Click **Cancel** instead, and the overlay does it the next time you close the meter.
@@ -232,7 +242,7 @@ AION 2 is a trademark of NCSOFT. This project isn't affiliated with NCSOFT.
 Bug reports, ideas and pull requests are welcome. It's a side project, so answers may take a while.
 
 - **The plugin** is plain HTML, CSS and JavaScript in [`plugin/farm-guide`](plugin/farm-guide). The release zip has the full folder with images and map tiles. To try a change, load the folder in the meter's developer mode and click **Check for updates** after each edit.
-- **The overlay** is a [Tauri 2](https://tauri.app) app in [`overlay`](overlay). Its page is built from the plugin by `overlay/assemble.py`; `overlay/build.sh` builds the Windows exe.
+- **The overlay** is a [Tauri 2](https://tauri.app) app in [`overlay`](overlay). Its page is built from the plugin by `overlay/assemble.py`; `overlay/build.sh` builds the Windows exe (MSVC, through [cargo-xwin](https://github.com/rust-cross/cargo-xwin)).
 - **The setup** is an [NSIS](https://nsis.sourceforge.io) script in [`installer`](installer). It installs the files; the overlay itself adds the plugin to the meter (`--setup-register`, in [`overlay/src-tauri/src/setup.rs`](overlay/src-tauri/src/setup.rs)).
 - **A release** is made with [`tools/make_release.py`](tools/make_release.py) (the setup, the zips and the signed update feed), which signs it with the project's private key (kept out of this repository).
 
