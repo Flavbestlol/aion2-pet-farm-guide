@@ -116,7 +116,7 @@ def main():
         f"- **New here?** Download **`{setup.name}`** and run it. It installs the guide and adds it to the A2 Tools DPS Meter for you.\n"
         f"- **Already installed?** The overlay offers this update by itself (Settings › Overlay › Updates). Running the new setup works too.\n"
         f"- **By hand?** `{pzip.name}` (the plugin) and `{ozip.name}` (the overlay): see *Install by hand* in the README.\n\n"
-        f"Plugin {pv} · Overlay {ov}. Every update is signed; the overlay checks the signature and each file's SHA-256 before installing.\n",
+        f"Plugin {pv} · Overlay {ov}.\n",
         encoding="utf-8",
     )
     print(f"release {tag} in {out}:")

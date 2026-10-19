@@ -43,7 +43,9 @@ Two parts that work together:
 
 ### A guide that sits on your game
 
-<img src="docs/overview.gif" alt="The tip over the game, opening into the guide" width="640">
+<p align="center">
+  <img src="docs/overview.gif" alt="The tip over the game, opening into the guide" width="640">
+</p>
 
 - **The tip** shows the monster to kill, how many souls are left and a ring that fills as you farm. On the way to a stop it shows the teleport and an arrow.
 - **Click it** and the guide grows out of it. It folds back by itself when you stop hunting, and opens again when you start.
@@ -52,7 +54,9 @@ Two parts that work together:
 
 ### Your whole route, one click away
 
-<img src="docs/stop-list.gif" alt="The stop list with the Main and Rift routes" width="760">
+<p align="center">
+  <img src="docs/stop-list.gif" alt="The stop list with the Main and Rift routes" width="760">
+</p>
 
 - **A route over every unfinished pet**, grouped so you farm several pets at each stop, in the order you choose (by genus, or fewest stops).
 - **Click the stop name** for every stop at once, with how far its pets are (%), the souls left and who's there. Search by pet, monster or zone.
@@ -61,19 +65,25 @@ Two parts that work together:
 
 ### The best loop through the spawns
 
-<img src="docs/farming-loop.gif" alt="The farming loop on the map" width="600">
+<p align="center">
+  <img src="docs/farming-loop.gif" alt="The farming loop on the map" width="600">
+</p>
 
 - At each stop the map draws **the shortest loop through the densest spawn pockets** of the pets you still need, with arrows showing the way.
 - **Your souls tell it where you are.** The pocket you're in glows and the next one lights up.
 - As pets finish, the loop rebuilds around what's left.
 
-<img src="docs/map-controls.gif" alt="Map controls" width="560">
+<p align="center">
+  <img src="docs/map-controls.gif" alt="Map controls" width="560">
+</p>
 
 Round or square, resize with the gold grip, hide the monster icons, or fold the map away, all right under the map.
 
 ### Pets, stats and settings
 
-<img src="docs/tabs.gif" alt="The Pets, Stats and Settings tabs" width="760">
+<p align="center">
+  <img src="docs/tabs.gif" alt="The Pets, Stats and Settings tabs" width="760">
+</p>
 
 - **Pets:** every pet with its level and souls left, with tags for Rift-only, Abyss and boss pets (they follow your faction). Click one to be guided to its best spots.
 - **Stats:** souls per hour, this session and today, and your best farming areas.
@@ -81,7 +91,9 @@ Round or square, resize with the gold grip, hide the monster icons, or fold the 
 
 ### It knows where you are
 
-<img src="docs/dungeons.gif" alt="The guide folding away in a dungeon" width="640">
+<p align="center">
+  <img src="docs/dungeons.gif" alt="The guide folding away in a dungeon" width="640">
+</p>
 
 - **Dungeons and raids:** field souls don't drop inside, so the guide folds away by itself and opens again when you leave. A boss soul names the dungeon and lists the boss souls you still need.
 - **Islands:** the first trip to an island goes by Windstream, and the guide tells you where it is.
@@ -146,9 +158,10 @@ Running a newer setup works too: it installs over the old version and keeps your
 
 Here is exactly what each part does:
 
-- **The plugin** runs in the meter's sandbox. It has no network access. It reads only numbers from your own game data: your pets' levels, the souls you get, the level-ups, and the id of the map you load. It never sees chat, names or anyone else's data. Everything it saves stays on your PC.
+- **The plugin** runs in the meter's sandbox. It has no network access. It reads only your own game data: which character you're on (so each one keeps its own progress), your pets' levels, the souls you get, the level-ups, and the id of the map you load. It never sees chat or other players' data. Everything it saves stays on your PC.
 - **The overlay** never touches the game. It reads the plugin's saved files and writes its own settings. Its only network use is the update check: it downloads a small file from this repository's releases. **It sends nothing about you.**
 - **The setup** changes one thing outside its own folder: the meter's plugin list. It turns on *Plugin developer mode* and adds the guide's `farm-guide` folder, as you would by hand, and keeps a copy of the meter's settings as they were (`settings.json.farm-guide-backup`, next to them). Uninstalling takes the folder out again.
+- **Updates can't be faked.** The overlay installs an update only if it carries this project's signature and every file matches it, so nobody else can slip you a fake one.
 - **It's open.** All the code is in this repository: read it, or build it yourself.
 
 > [!NOTE]
@@ -209,6 +222,7 @@ It's locked. Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd>, or click the
 Built on the work of others. Thank you:
 
 - **[A2 Tools DPS Meter](https://github.com/taengu/A2Tools-DPS-Meter)** by **taengu** ([a2tools.app](https://a2tools.app)): the meter, its plugin system, and the game-data decoders. The plugin's decoders come from the official [Pet Soul Tracker](https://github.com/taengu/A2Tools-Plugins).
+- **[A2 Tools plugins](https://github.com/taengu/A2Tools-Plugins)**: pet names in ten languages, teleport numbers, where dungeon souls drop, and the Rift schedule from the Event Timers plugin.
 - **Th3Ruthless**, *AION 2 Pet Farming Routes* (Elyos and Asmodian editions): the island Windstreams, the Abyss bases and entry needs, the boss and dungeon sources, and the sources that couldn't be confirmed. We took the routes and tweaked them into the guide.
 - **[MetaBot.GG](https://metabot.gg/en/aion-2)**: spawn points, monster art and drop tables.
 - **wikily.gg**: the owned effects of each pet genus.
@@ -222,7 +236,7 @@ Bug reports, ideas and pull requests are welcome. It's a side project, so answer
 - **The plugin** is plain HTML, CSS and JavaScript in [`plugin/farm-guide`](plugin/farm-guide). The release zip has the full folder with images and map tiles. To try a change, load the folder in the meter's developer mode and click **Check for updates** after each edit.
 - **The overlay** is a [Tauri 2](https://tauri.app) app in [`overlay`](overlay). Its page is built from the plugin by `overlay/assemble.py`; `overlay/build.sh` builds the Windows exe.
 - **The setup** is an [NSIS](https://nsis.sourceforge.io) script in [`installer`](installer). It installs the files; the overlay itself adds the plugin to the meter (`--setup-register`, in [`overlay/src-tauri/src/setup.rs`](overlay/src-tauri/src/setup.rs)).
-- **A release** is made with [`tools/make_release.py`](tools/make_release.py) (the setup, the zips and the signed update feed), which needs the publisher's private signing key. It isn't in this repository, and never will be.
+- **A release** is made with [`tools/make_release.py`](tools/make_release.py) (the setup, the zips and the signed update feed), which signs it with the project's private key (kept out of this repository).
 
 ## Support
 
