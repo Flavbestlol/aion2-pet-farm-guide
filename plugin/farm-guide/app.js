@@ -84,7 +84,7 @@
   const genusOf = (pid) => D.pets[pid]?.g || "special";
   const colorOf = (pid) => E.GENUS_COLOR[genusOf(pid)];
   const portrait = (pid) => `img/p/${pid}.webp`;
-  const mobArt = (npc) => (D.mobs[npc]?.art ? `img/m/${D.mobs[npc].art}` : "");
+  const mobArt = (npc) => { const m = D.mobs[npc]; return !m ? "" : m.artPet && m.pet ? portrait(m.pet) : m.art ? `img/m/${m.art}` : ""; };
   const level = (pid) => Math.min(E.MAX_LEVEL, pets.levels[pid] || 0);
   const pointsOf = (pid) => pets.points[pid] || 0;
   const leftOf = (pid) => E.soulsLeft(level(pid), pointsOf(pid), prefs.goal);
@@ -244,6 +244,8 @@
     const s = settings();
     const contents = E.stopContents(D, stop, s);
     const queue = E.stopQueue(D, stop, contents, pets.levels, pets.points, s);
+    // in the Abyss, the pets you can only get here (not on your side's map) come first
+    if (stop.map === "A") { const k = (r) => (r.bonus ? 2 : E.abyssOnlyPet(D, r.pid, s) ? 0 : 1); queue.sort((a, b) => k(a) - k(b)); }
     let tr = E.travel(D, stop, s);
     // the Abyss route is one walk from your base: from the second stop on, the way is from the last
     // stop (there's no Kibelisk in the Abyss but the two bases), when that's nearer
@@ -491,10 +493,31 @@
         tip = waste.map((a) => `${D.mobs[a.npc].n} → ${petName(a.pet)} (${a.n} here)`).join("\n") + "\nSame kind of monster, another name: read the full name before you pull.";
       }
     }
+    // in the Abyss, a pet you can also farm at home: say where, and how it compares
+    let home = null;
+    const st = settings();
+    if (!msg && m.stop.map === "A" && !guide && !E.abyssOnlyPet(D, f.pid, st)) {
+      const own = E.ownMap(st), spot = bestSpot(f.pid).find((x) => x.map === own);
+      if (spot) {
+        const here = m.contents[f.pid]?.spawns || 0;
+        home = spot;
+        msg = `🏠 Also in ${mapLabel(own)}: ${E.zoneAt(D, own, spot.x, spot.y).split(" - ").pop()} · ${spot.count} spawns${here ? ` (${here} here)` : ""}`;
+        tip = `${petName(f.pid)} isn't only in the Abyss. ${spot.count > here ? "There are more of them at home: " : ""}click to be guided there.\nThe Abyss route puts the pets you can only get here first.`;
+      }
+    }
     els.alike.hidden = !msg;
     els.alike.textContent = msg;
     els.alike.title = tip;
+    els.alike.classList.toggle("outside", !!home);
+    els.alike.dataset.pid = home ? f.pid : "";
   }
+  // "Also at home": guided to that pet's best spot on your side's map
+  els.alike.addEventListener("click", () => {
+    const pid = els.alike.dataset.pid;
+    if (!pid) return;
+    startGuide(pid);
+    if (guide) { const i = guide.spots.findIndex((x) => x.map === E.ownMap(settings())); if (i > 0) { guide.i = i; model = null; render(); } }
+  });
   // the in-game theme's ring: from a light tint to the pet's genus colour
   const ringStops = [$("#ggrad .g0"), $("#ggrad .g1")];
   function setRingColor(hex) {
@@ -655,7 +678,16 @@
     return el;
   }
   function renderQueue(m) {
-    const order = m.queue.map((row) => { const el = qCell(row); el.classList.toggle("now", row.pid === m.focus?.pid); return el; });
+    const st = settings();
+    const order = m.queue.map((row) => {
+      const el = qCell(row);
+      el.classList.toggle("now", row.pid === m.focus?.pid);
+      // in the Abyss: this one you can also farm at home
+      const home = m.stop.map === "A" && !E.abyssOnlyPet(D, row.pid, st);
+      el.classList.toggle("home", home);
+      if (home) el.title += ` · also in ${mapLabel(E.ownMap(st))}`;
+      return el;
+    });
     const keep = new Set(order);
     // pets that left: pop out, then their cell goes (no empty gap)
     for (const [pid, el] of qEls) {
@@ -2259,7 +2291,7 @@
     }));
     seg.style.setProperty("--x", `${Math.max(0, tabs.findIndex(([m]) => m === slView)) * 100}%`);
   }
-  function slGroup(s) { return s.map === "A" ? "Abyss" : `${s.rift ? "Rift · " : ""}${mapLabel(s.map)}`; }
+  function slGroup(s) { return s.map === "A" ? (slView === "abyss" ? (s.bucket ? "Also outside the Abyss" : "Only in the Abyss") : "Abyss") : `${s.rift ? "Rift · " : ""}${mapLabel(s.map)}`; }
   function renderStops() {
     if (!routes[slView].length) slView = mode;
     const viewing = slView === mode && !guide; // the list of the route you're on: it has a "you are here"
@@ -2578,29 +2610,13 @@
     };
     window.FG_key = () => key;
     // when the game starts: what your last session gave, and what's left (from your own soul log)
+    // after a break (30 min or more since your last soul): one quiet line, hello and what's left
     window.FG_recap = () => {
-      const L = [...log].sort((a, b) => a[0] - b[0]);
-      if (L.length < 3) return;
-      let i = L.length - 1;
-      while (i > 0 && L[i][0] - L[i - 1][0] < 30 * 60000) i--;
-      const ses = L.slice(i), end = ses[ses.length - 1][0];
-      if (Date.now() - end < 30 * 60000) return; // still the same session: nothing to recap
-      const souls = ses.reduce((a, e) => a + e[2], 0);
-      const st = E.sessionStats(ses, Date.now());
-      const ups = levelLog.filter((e) => e[0] >= ses[0][0] && e[0] <= end + 60000).length;
-      const best = Object.values(st.areas).filter((a) => a.souls >= 3 && a.ms >= 180000).sort((a, b) => b.perHour - a.perHour)[0];
-      const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(end).setHours(0, 0, 0, 0)) / 86400000);
-      const when = days <= 0 ? "Earlier today" : days === 1 ? "Yesterday" : `${days} days ago`;
-      const todo = Object.keys(D.pets).filter((p) => E.isFarmable(D, p) && leftOf(p) > 0);
-      const souls2 = todo.reduce((a, p) => a + leftOf(p), 0);
-      const line = `${when}: ${souls} soul${souls === 1 ? "" : "s"} in ${fmtDur(st.all.ms)} of farming${ups ? ` · ${ups} level-up${ups === 1 ? "" : "s"}` : ""}`;
-      if (isFolded()) return tipFlash(`👋 ${line}`, 6000);
-      const t = toast(`👋 Welcome back`, "level", 7000);
-      const row = h("div", "ts");
-      row.append(h("span", "chip-stat", line));
-      if (best) row.append(h("span", "chip-stat", `Best: ${best.area} ${Math.round(best.perHour)}/h`));
-      row.append(h("span", "chip-stat", `Still to go: ${todo.length} pets · ${souls2.toLocaleString()} souls`));
-      t.append(row);
+      const last = log.reduce((a, e) => Math.max(a, e[0]), 0);
+      if (log.length < 3 || Date.now() - last < 30 * 60000) return;
+      const todo = Object.keys(D.pets).filter((p) => E.isFarmable(D, p) && leftOf(p) > 0).length;
+      const line = `👋 Welcome back · ${todo} pet${todo === 1 ? "" : "s"} to go`;
+      if (isFolded()) tipFlash(line, 4000); else flash(line);
     };
     window.FG_toggleLock = () => { prefs.locked = !prefs.locked; applyLock(); savePrefs(); flash(prefs.locked ? "🔒 Locked" : "🔓 Unlocked"); if (isFolded()) tipFlash(prefs.locked ? "🔒 Locked" : "🔓 Unlocked", 1500); };
     window.FG_isLocked = () => !!prefs.locked;

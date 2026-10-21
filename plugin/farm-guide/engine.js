@@ -295,27 +295,32 @@
     for (const c of cands) c.cov = Object.keys(c.dens).filter((p) => covers(c, p));
 
     // the Abyss (a PvP zone you walk from your base): fewest stops, then one loop from the base
+    // Priority buckets: by genus (the main and Rift routes, unless "fewest stops"); in the Abyss,
+    // the pets you can't farm on your own side's map first, then the ones you also could at home.
     const order = settings.order === "nearest" || settings.abyssOnly ? null : settings.priority || GENERA;
+    const keyOf = settings.abyssOnly ? (p) => (abyssOnlyPet(D, p, settings) ? 0 : 1) : order ? (p) => order.indexOf(D.pets[p].g) : () => 0;
     const left = new Set(todo.filter((p) => best[p]));
     const stops = [];
     while (left.size) {
-      let bucket = null;
-      if (order) for (const g of order) if ([...left].some((p) => D.pets[p].g === g)) { bucket = g; break; }
+      let bucket = Infinity;
+      for (const p of left) bucket = Math.min(bucket, keyOf(p));
       let pick = null, pickScore = 0, pickDens = 0;
       for (const c of cands) {
-        let score = 0, dens = 0;
+        let score = 0, dens = 0, ok = false;
         for (const p of c.cov) {
           if (!left.has(p)) continue;
-          score += !bucket || D.pets[p].g === bucket ? 1 : 0.35;
+          const mine = keyOf(p) === bucket;
+          ok ||= mine;
+          score += mine ? 1 : 0.35;
           dens += c.dens[p];
         }
-        if (bucket && !c.cov.some((p) => left.has(p) && D.pets[p].g === bucket)) continue;
+        if (!ok) continue;
         if (score > pickScore || (score === pickScore && dens > pickDens)) (pick = c), (pickScore = score), (pickDens = dens);
       }
       if (!pick) break;
       const pets = pick.cov.filter((p) => left.has(p));
       for (const p of pets) left.delete(p);
-      let bk = order ? order.indexOf(bucket) : 0;
+      let bk = bucket;
       // the Rift route: stops with pets you can only get over there come first (the Rift is short)
       if (settings.riftOnly && !pets.some((p) => riftOnlyPet(D, p, settings))) bk += 100;
       stops.push({ map: pick.map, x: pick.x, y: pick.y, r: STOP_R, pets, dens: pick.dens, bucket: bk });
@@ -339,10 +344,11 @@
       if (!groups.includes(g)) groups.push(g);
     }
     groups.sort((a, b) => { const [ab, am] = a.split(":").map(Number), [bb, bm] = b.split(":").map(Number); return ab - bb || am - bm; });
+    let at = from; // where you are when a group starts (the Abyss: your base, then the last stop)
     for (const g of groups) {
       const rest = stops.filter((s) => `${s.bucket}:${mapRank(s.map, settings)}` === g);
-      // start from the stop with the most pets (or the one nearest where you arrive), then always the nearest one
-      if (from) rest.sort((a, b) => Math.hypot(a.x - from[0], a.y - from[1]) - Math.hypot(b.x - from[0], b.y - from[1]));
+      // start from the stop with the most pets (or the one nearest where you are), then always the nearest one
+      if (at) rest.sort((a, b) => Math.hypot(a.x - at[0], a.y - at[1]) - Math.hypot(b.x - at[0], b.y - at[1]));
       else rest.sort((a, b) => b.pets.length - a.pets.length);
       let cur = rest.shift();
       while (cur) {
@@ -351,6 +357,7 @@
         rest.forEach((s, i) => { const d = Math.hypot(s.x - cur.x, s.y - cur.y); if (d < bd) (bd = d), (bi = i); });
         cur = bi >= 0 ? rest.splice(bi, 1)[0] : null;
       }
+      if (from && out.length) at = [out[out.length - 1].x, out[out.length - 1].y];
     }
     for (const s of out) {
       s.key = `${s.map}:${s.x}:${s.y}`;

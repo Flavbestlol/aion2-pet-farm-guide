@@ -64,7 +64,7 @@ Two parts that work together:
 - **A route over every unfinished pet**, grouped so you farm several pets at each stop, in the order you choose (by genus, or fewest stops).
 - **Click the stop name** for every stop at once, with how far its pets are (%), the souls left and who's there. Search by pet, monster or zone.
 - **Three routes, kept apart.** The **main** route stays on your side of the world. The **Abyss** route is one walking loop through Lower Reshanta from your side's base, covering every pet that drops there. The **Rift** route is the other side's map, with the pets you can only get there first.
-- **The Abyss.** When you teleport in, it offers the Abyss route, or tells you every pet in there is done. Its monsters carry the Abyss's own names ("Abyss Coradon" gives Eternal Coradon souls): the guide shows both, and the Pets tab tags each pet *Abyss only* or *Abyss too*.
+- **The Abyss.** The pets you can only get there come first; a pet you could also farm at home is marked with a house, and the guide says where (and how many spawn there). When you teleport in, it offers the Abyss route, or tells you every pet in there is done. Its monsters carry the Abyss's own names ("Abyss Coradon" gives Eternal Coradon souls): the guide shows both, and the Pets tab tags each pet *Abyss only* or *Abyss too*.
 - **Rift reminders.** Five minutes before each Rift (every 3 hours, in your server's time) it offers the Rift route. When you cross over, it switches by itself, and back when you return.
 
 ### The best loop through the spawns

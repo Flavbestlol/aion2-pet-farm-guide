@@ -822,3 +822,10 @@ body.dock-right .cgrip { right: auto; left: 2px; transform: scaleX(-1); }
 @keyframes firecall { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); } 18% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 70% { opacity: 1; transform: translate(-50%, -80%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -110%) scale(0.95); } }
 body.nofx .blaze, body.nofx .firecall { display: none; }
 @media (prefers-reduced-motion: reduce) { .blaze i, .firecall { animation: none !important; } }
+
+/* the Abyss: a pet you can also farm at home is marked, and its hint takes you there */
+.qcell.home .qr::before { content: "⌂"; position: absolute; left: -3px; top: -4px; z-index: 2; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; font: 700 10px/1 var(--num); color: #0c0f16; background: #cfd6e4; box-shadow: 0 0 0 1.5px rgba(6, 8, 12, 0.8); }
+.qcell.home { opacity: 0.78; }
+.qcell.home.now { opacity: 1; }
+.alike.outside { color: #cfe2ff; cursor: pointer; text-decoration: underline dotted rgba(207, 226, 255, 0.5); text-underline-offset: 3px; }
+.alike.outside:hover { color: #fff; }

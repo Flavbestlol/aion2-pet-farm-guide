@@ -65,11 +65,16 @@
     },
   });
 
+  // Monsters whose picture (MetaBot's) is another creature's: they show their pet's portrait,
+  // which is the creature itself. (Every Drakan Guard Dog source has the Drakan rider's picture.)
+  C.artFromPet = ["Drakan Guard Dog"];
+
   const pidByName = {};
   for (const [pid, p] of Object.entries(D.pets)) pidByName[p.n.en] = pid;
   C.acquireBy = {};
   for (const [name, how] of Object.entries(C.acquire)) if (pidByName[name]) C.acquireBy[pidByName[name]] = how;
   for (const mob of Object.values(D.mobs)) if (C.held[mob.n]) mob.held = C.held[mob.n];
+  for (const mob of Object.values(D.mobs)) if (D.pets[mob.pet] && C.artFromPet.includes(D.pets[mob.pet].n.en)) mob.artPet = true;
   C.dungeonOf = {}; // pet id → the dungeon its souls drop in
   for (const d of C.dungeons) d.pids = d.pets.map((n) => pidByName[n]).filter(Boolean);
   for (const d of C.dungeons) for (const pid of d.pids) C.dungeonOf[pid] = d.name;
