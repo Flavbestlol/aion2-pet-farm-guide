@@ -4,15 +4,16 @@ html, body { background: transparent !important; overflow: hidden; }
 
 /* the guide: a floating card, opened from the tip */
 body.ov #app {
-  position: fixed; left: 0; top: 0; width: 372px; height: min(660px, calc((100vh - 24px) / var(--ov-scale)));
+  position: fixed; left: 0; top: 0; width: var(--gw, 340px); height: min(660px, var(--room, calc((100vh - 24px) / var(--ov-scale))));
   zoom: var(--ov-scale);
   background: rgba(14, 16, 22, var(--ov-bg)); border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 18px; overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   transition: transform 0.42s cubic-bezier(.2, .9, .25, 1), opacity 0.3s ease, filter 0.3s;
 }
 body.ov.folded #app { transform: scale(0.08); opacity: 0; filter: blur(6px); }
-/* compact: as wide as you drag it (the grip in its corner), as tall as what it shows */
-body.ov.vcompact[data-tab="guide"] #app { width: var(--cw, 300px); height: auto; max-height: calc((100vh - 24px) / var(--ov-scale)); }
+/* compact and full are one width (drag the grip in the corner): a size switch only changes the
+   height, so the header, its buttons and the guide's edges stay where they are */
+body.ov.vcompact[data-tab="guide"] #app { height: auto; max-height: calc((100vh - 24px) / var(--ov-scale)); }
 body.ov .top { cursor: grab; }
 body.ov.dragging, body.ov.dragging * { cursor: grabbing !important; }
 body.ov.dragging #app, body.ov.dragging .tip { transition: none; }
@@ -75,3 +76,12 @@ body.ov.snapping:not(.dragging) .tip, body.ov.snapping:not(.dragging) #app { tra
 .ovcard .oc-btn:disabled { opacity: 0.45; cursor: default; }
 .ovcard .oc-f { margin-top: 12px; font-size: 12px; color: #7f8699; }
 body.ov.nogame .ovcard:not(.always) { display: none; }
+
+/* the guide is taller than the room under its header (low on the screen, the full guide): the
+   map has already shrunk as far as it goes, so the rest scrolls inside, the bottom fading out.
+   The header stays where it is. */
+body.ov.tight[data-tab="guide"] #app { max-height: var(--room) !important; }
+body.ov.tight[data-tab="guide"] .pane[data-pane="guide"] {
+  overflow-y: auto !important; overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent);
+}

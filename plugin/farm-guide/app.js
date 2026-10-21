@@ -44,7 +44,7 @@
     dungeonFold: "fold", slShowDone: false, riftAlert: "on", abyssAlert: "on",
     // sizes: the open guide is compact or full (folded is the tip); farmSize is what to go back to
     // once you're farming, compactMap shows the map in compact, mapWhen: "always" | "way" (full only)
-    view: "compact", farmSize: "compact", compactMap: false, mapWhen: "always", cw: 0,
+    view: "compact", farmSize: "compact", compactMap: false, mapWhen: "always", cw: 0, gw: 0,
     // the monster list as rings or bars; the layout you set in edit mode (overlay), per size:
     // { compact: { part: { x, y, w, s, pic, hide } }, full: {…} }
     qStyle: "ring", layout: null,
@@ -1930,7 +1930,7 @@
     document.body.classList.toggle("map-round", round);
     document.body.classList.toggle("map-square", !round);
     document.body.classList.toggle("map-sized", round || isHud() || !!prefs.mapSize);
-    document.body.style.setProperty("--msz", `${prefs.mapSize || defaultMapSize()}px`);
+    document.body.style.setProperty("--msz", `${mapFit && !els.mapzone.classList.contains("detached") ? Math.min(mapFit, mapNat()) : mapNat()}px`);
     els.mapzone.classList.toggle("folded", !!prefs.mapFold);
     els.mbShape.title = round ? "Round map: click for square" : "Square map: click for round";
     els.mbLoop.setAttribute("aria-pressed", String(prefs.mapLoop !== false));
@@ -2007,7 +2007,8 @@
     els.mapgrip.addEventListener("pointercancel", up);
   });
   els.mapgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.mapSize = null; savePrefs(); applyMapFrame(); });
-  // the compact guide's width (in the overlay): drag its grip; double-click for the default
+  // the guide's width (in the overlay, compact and full alike): drag its grip; double-click for the default
+  const GW_MIN = 260, GW_MAX = 520;
   els.cgrip.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || prefs.locked) return;
     e.preventDefault();
@@ -2018,8 +2019,8 @@
     els.cgrip.setPointerCapture(e.pointerId);
     document.body.classList.add("resizing-c");
     const move = (ev) => {
-      prefs.cw = Math.round(Math.max(190, Math.min(460, st.w + (flip * (ev.clientX - st.x)) / z)));
-      document.documentElement.style.setProperty("--cw", `${prefs.cw}px`);
+      prefs.gw = Math.round(Math.max(GW_MIN, Math.min(GW_MAX, st.w + (flip * (ev.clientX - st.x)) / z)));
+      document.documentElement.style.setProperty("--gw", `${prefs.gw}px`);
       if (HOST && HOST.onFold) HOST.onFold(isFolded());
     };
     const up = () => {
@@ -2033,7 +2034,7 @@
     els.cgrip.addEventListener("pointerup", up);
     els.cgrip.addEventListener("pointercancel", up);
   });
-  els.cgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.cw = 0; savePrefs(); applyView(); });
+  els.cgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.gw = 0; savePrefs(); applyView(); });
   // ── the monster list: rings or bars ──
   // The small button at the end of the list switches. The cells glide from the row into the stack
   // (or back), the list's height glides with them, and the bars fill up from empty.
@@ -2080,6 +2081,7 @@
   let morphTimer = 0;
   function morphView(apply) {
     const app = $("#app"), cls = document.body.classList;
+    if (HOST && HOST.holdHeader) HOST.holdHeader(); // the header stays where it is; the bottom moves
     clearTimeout(morphTimer);
     app.classList.remove("morphing", "morph-in");
     app.style.clipPath = "";
@@ -2149,38 +2151,70 @@
       if (!el) continue;
       const s = b !== "map" && L.s && L.s !== 1 ? L.s : 0;
       if (s) el.style.setProperty("--ez", String(s)); else el.style.removeProperty("--ez");
-      const det = Number.isFinite(L.x) && Number.isFinite(L.y);
+      const det = isMoved(L);
       el.classList.toggle("detached", det);
       if (det) {
         moved = true;
-        el.style.setProperty("--ex", `${L.x}px`);
-        el.style.setProperty("--ey", `${L.y}px`);
         if (L.w) el.style.setProperty("--ew", `${L.w}px`); else el.style.removeProperty("--ew");
-      } else for (const v of ["--ex", "--ey", "--ew", "--fx", "--fy"]) el.style.removeProperty(v);
+      } else for (const v of ["--ex", "--ey", "--ew"]) el.style.removeProperty(v);
       el.classList.toggle("ehide", !!L.hide && !(b === "map" && isCompact()));
     }
     const pic = peek("focus").pic;
     if (pic && pic !== 1) els.dial.style.setProperty("--pic", String(pic)); else els.dial.style.removeProperty("--pic");
     document.body.classList.toggle("edited", moved);
-    fitDetached();
+    placeDetached();
   }
-  // a part moved off the guide stays on screen wherever the guide goes (nudged in, not saved)
-  function fitDetached() {
-    if (!HOST) return;
-    const app = $("#app"), k = kOf(app), W = innerWidth, H = innerHeight;
-    for (const el of $$("[data-edit].detached")) {
-      if (el.classList.contains("grabbing")) continue;
-      el.style.removeProperty("--fx");
-      el.style.removeProperty("--fy");
-      if (!visible(el)) continue;
-      const r = el.getBoundingClientRect();
-      const dx = r.left < 4 ? 4 - r.left : r.right > W - 4 ? Math.max(4 - r.left, W - 4 - r.right) : 0;
-      const dy = r.top < 4 ? 4 - r.top : r.bottom > H - 4 ? Math.max(4 - r.top, H - 4 - r.bottom) : 0;
-      if (dx) el.style.setProperty("--fx", `${dx / k}px`);
-      if (dy) el.style.setProperty("--fy", `${dy / k}px`);
+  // A part you moved is pinned to the screen (where you put it, as a share of the screen, so a
+  // different resolution keeps the layout): moving the guide by its header doesn't take it along.
+  // It's placed from where the guide is now, and kept on screen.
+  const isMoved = (L) => Number.isFinite(L.px) || Number.isFinite(L.x);
+  function placeDetached() {
+    const box = HOST && HOST.appBox ? HOST.appBox() : null;
+    if (!box || isFolded()) return;
+    const W = innerWidth, H = innerHeight;
+    for (const b of EDIT_PARTS) {
+      const el = partEl(b);
+      if (!el || !el.classList.contains("detached")) continue;
+      const L = peek(b), s = (b === "map" ? 1 : L.s || 1) * box.z;
+      const w = el.offsetWidth * s, hh = el.offsetHeight * s;
+      if (!Number.isFinite(L.px)) {
+        // a layout from 1.20.0: kept against the guide's docked edge; pin it where it is now
+        const right = document.body.classList.contains("dock-right");
+        const P = lay(b);
+        P.px = (right ? box.pl + box.pw - L.x * box.z - w : box.pl + L.x * box.z) / W;
+        P.py = (box.pt + L.y * box.z) / H;
+        delete P.x; delete P.y;
+        savePrefs();
+      }
+      const sx = Math.max(4, Math.min(W - w - 4, L.px * W)), sy = Math.max(4, Math.min(H - hh - 4, L.py * H));
+      el.style.setProperty("--ex", `${(sx - box.pl) / box.z - box.border}px`);
+      el.style.setProperty("--ey", `${(sy - box.pt) / box.z - box.border}px`);
     }
   }
-  window.FG_afterLayout = () => { fitDetached(); placePop(); };
+  window.FG_afterLayout = () => { placeDetached(); placePop(); };
+  // The guide fits the room under its header (the overlay says how much there is): when the full
+  // guide is taller than that, the map gets smaller, so the header never has to move up.
+  let mapFit = 0;
+  const mapNat = () => prefs.mapSize || defaultMapSize();
+  window.FG_fitRoom = (room) => {
+    const z = els.mapzone, nat = Math.max(MAP_MIN, Math.min(mapNat(), $("#app").offsetWidth - 16)); // never wider than the guide
+    const can = tab === "guide" && document.body.classList.contains("map-sized") && !z.classList.contains("detached") && !prefs.mapFold &&
+      z.style.display !== "none" && getComputedStyle(z).display !== "none";
+    let fit = 0;
+    const cls = document.body.classList, was = cls.contains("tight");
+    cls.remove("tight"); // measured at full height
+    if (can) {
+      document.body.style.setProperty("--msz", `${nat}px`);
+      const over = $("#app").offsetHeight - room;
+      if (over > 0) fit = Math.max(MAP_MIN, Math.round(nat - over));
+    }
+    document.body.style.setProperty("--msz", `${fit || nat}px`);
+    if (fit !== mapFit) { mapFit = fit; if (mapView) setTimeout(() => mapView.resize(), 30); }
+    // still too tall with the smallest map: it scrolls inside (the bottom fades), the header stays
+    const tight = tab === "guide" && $("#app").offsetHeight > room + 1;
+    cls.toggle("tight", tight);
+    if (tight !== was && mapView) setTimeout(() => mapView.resize(), 30);
+  };
   function relayout() {
     applyView();
     applyLayout();
@@ -2279,7 +2313,7 @@
   }
   function putBack(b) {
     const L = lay(b);
-    delete L.x; delete L.y; delete L.w;
+    delete L.x; delete L.y; delete L.px; delete L.py; delete L.w;
     savePrefs();
     relayout();
   }
@@ -2311,19 +2345,18 @@
     for (const y of ys) { const g = h("div", "eguide h"); g.style.cssText = `top:${y}px;left:0;width:100vw`; document.body.append(g); guides.push(g); }
   }
   function detach(b, el) {
-    const app = $("#app"), ar = app.getBoundingClientRect(), k = kOf(app), r = el.getBoundingClientRect(), L = lay(b);
+    const app = $("#app"), k = kOf(app), r = el.getBoundingClientRect(), L = lay(b);
     if (b === "map" && !document.body.classList.contains("map-sized")) { prefs.mapSize = Math.round(els.mapwrap.offsetHeight); applyMapFrame(); }
-    const right = flipX() < 0;
     // the map and the monster list are as wide as what they show; the text parts keep their width
     if (b === "map" || b === "queue") delete L.w;
     else L.w = Math.round(r.width / k / (L.s || 1));
-    L.x = (right ? ar.right - r.right : r.left - ar.left) / k;
-    L.y = (r.top - ar.top) / k;
+    L.px = r.left / innerWidth;
+    L.py = r.top / innerHeight;
     applyLayout();
-    // where it landed may differ by the guide's border or padding: line it up exactly
+    // where it landed may differ by a border or padding: line it up exactly
     const n = el.getBoundingClientRect();
-    L.x += (right ? n.right - r.right : r.left - n.left) / k;
-    L.y += (r.top - n.top) / k;
+    L.px += (r.left - n.left) / innerWidth;
+    L.py += (r.top - n.top) / innerHeight;
     applyLayout();
   }
   document.addEventListener("pointerdown", (e) => {
@@ -2344,12 +2377,8 @@
       d.moved = true;
       closePop();
       if (!d.el.classList.contains("detached")) detach(d.b, d.el);
-      d.el.style.removeProperty("--fx");
-      d.el.style.removeProperty("--fy");
       d.el.classList.add("grabbing");
       d.r0 = d.el.getBoundingClientRect();
-      d.L0 = { x: lay(d.b).x, y: lay(d.b).y };
-      d.k = kOf($("#app"));
       // what it lines up with: the header and every other part on screen
       d.xs = []; d.ys = [];
       for (const o of [$(".top"), ...$$("[data-edit]")]) {
@@ -2375,10 +2404,9 @@
     nt = Math.max(4, Math.min(innerHeight - r0.height - 4, nt));
     showGuides(gx, gy);
     const L = lay(d.b);
-    L.x = d.L0.x + (flipX() * (nl - r0.left)) / d.k;
-    L.y = d.L0.y + (nt - r0.top) / d.k;
-    d.el.style.setProperty("--ex", `${L.x}px`);
-    d.el.style.setProperty("--ey", `${L.y}px`);
+    L.px = nl / innerWidth;
+    L.py = nt / innerHeight;
+    placeDetached();
   });
   function endPartDrag(e) {
     const d = eDrag;
@@ -2388,7 +2416,7 @@
     if (!d.moved) return openPop(d.b);
     d.el.classList.remove("grabbing");
     const L = lay(d.b);
-    L.x = Math.round(L.x); L.y = Math.round(L.y);
+    L.px = Math.round(L.px * 10000) / 10000; L.py = Math.round(L.py * 10000) / 10000;
     savePrefs();
     applyLayout();
     if (HOST && HOST.capture) HOST.capture(false);
@@ -2474,10 +2502,10 @@
     }
     const foot = h("div", "ep-foot");
     const btn = (text, cls, fn, title) => { const k = h("button", `btn ${cls}`, text); k.type = "button"; if (title) k.title = title; k.addEventListener("click", fn); foot.append(k); };
-    if (Number.isFinite(L.x)) btn("Put back", "", () => { const v = b; closePop(); putBack(v); }, "Back into the guide's column (or double-click it)");
+    if (isMoved(L)) btn("Put back", "", () => { const v = b; closePop(); putBack(v); }, "Back into the guide's column (or double-click it)");
     btn("Reset", "", () => {
       const P = lay(b);
-      for (const k of ["x", "y", "w", "s", "pic"]) delete P[k];
+      for (const k of ["x", "y", "px", "py", "w", "s", "pic"]) delete P[k];
       if (b === "map") prefs.mapSize = null;
       savePrefs();
       relayout();
@@ -2530,7 +2558,9 @@
     document.body.classList.toggle("vcmap", isCompact() && !!prefs.compactMap);
     els.sizebtn.title = isCompact() ? "Full guide: the map, the tabs and everything" : "Compact: just what you're farming";
     els.sizebtn.setAttribute("aria-label", isCompact() ? "Full guide" : "Compact guide");
-    document.documentElement.style.setProperty("--cw", prefs.cw ? `${prefs.cw}px` : "");
+    // one width for compact and full (the overlay): from the old compact width the first time
+    if (!prefs.gw && prefs.cw) { prefs.gw = Math.max(GW_MIN, Math.min(GW_MAX, prefs.cw)); prefs.cw = 0; }
+    document.documentElement.style.setProperty("--gw", prefs.gw ? `${prefs.gw}px` : "");
     if (isCompact() && tab !== "guide") selectTab("guide");
     if (mapView) setTimeout(() => mapView.resize(), 60);
     applyLayout(); // each size has its own layout

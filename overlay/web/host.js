@@ -54,6 +54,10 @@
     overlay: true,
     defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, keepPlugin: false, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle", pluginView: "hidden" },
     onFold: () => requestAnimationFrame(layout),
+    // where the guide is on screen (parts you moved are pinned to the screen, placed from this)
+    appBox: () => lastBox,
+    // hold the header where it is now (a size switch is coming)
+    holdHeader() { if (lastBox && !(window.FG_isFolded && window.FG_isFolded())) pinTop = lastBox.pt; },
     // edit mode: while you drag a part, the whole window takes the mouse (it may leave the guide)
     capture(on) { lastHits = ""; invoke("set_capture", { on: !!on }).catch(() => {}); if (!on) sendHits(); },
     summary() {
@@ -99,7 +103,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.17.0";
+  const VERSION = "1.18.0";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -355,6 +359,7 @@
   // changes how tall the guide is, never where its header is: the bottom moves, the header stays
   // under your mouse. It moves only when you drag it, or as little as it takes to stay on screen.
   let pinTop = null;
+  let lastBox = null, lastTip = null; // where the guide and the tip are on screen, from the last layout
   function layout() {
     const tip = $(".tip"), app = $("#app"), toasts = $("#toasts");
     if (!tip || !app) return;
@@ -362,7 +367,9 @@
     const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1);
     const ax = clamp(anchor.fx, 0, 1) * W, ay = clamp(anchor.fy, 0, 1) * H;
     const side = prefs().ovSide || "auto";
-    const right = side === "auto" ? ax > W / 2 : side === "right", bottom = ay > H / 2;
+    // while you drag, the side it's docked to stays as it was (it's decided when you let go): it
+    // used to flip as you crossed the middle of the screen, and the guide jumped off your mouse
+    const right = drag && drag.moved ? drag.right : side === "auto" ? ax > W / 2 : side === "right", bottom = ay > H / 2;
     tip.classList.toggle("flip", right);
     document.body.classList.toggle("dock-right", right);
     // the layout faces the other way from the edge it's docked to: docked left, it reads from the
@@ -379,19 +386,26 @@
     const tk = placeK(tip, z), k = tk;
     tip.style.left = `${tl / tk}px`;
     tip.style.top = `${tt / tk}px`;
+    lastTip = { tl, tt, tw, th };
     // The guide's height decides where the header sits, on every tab: Pets / Stats / Settings fit
     // under that same header (scrolling inside) instead of moving it. Placed by their own (fixed)
     // height, the header and tabs jumped up or down when you left the guide tab, by up to 200 px.
     const onGuide = (document.body.dataset.tab || "guide") === "guide";
     if (onGuide) app.style.maxHeight = "";
+    const folded = window.FG_isFolded ? window.FG_isFolded() : false;
+    // the room under the header: the guide fits itself into it (the map gets smaller) rather
+    // than the header moving up when the full guide is taller than the space below it
+    const room = Math.max(300 * z, H - 8 - (pinTop !== null && !folded ? clamp(pinTop, 8, H) : 8)) / z;
+    document.documentElement.style.setProperty("--room", `${Math.floor(room)}px`);
+    if (!folded && window.FG_fitRoom) { try { window.FG_fitRoom(room); } catch (e) { console.warn(e); } }
     const pw = app.offsetWidth * z, ah = app.offsetHeight * z;
     if (onGuide && ah > 0) frameH = ah;
     const ph = frameH || ah;
     const pl = clamp(right ? ax + ICON * z - pw : ax - ICON * z, 8, W - pw - 8);
-    const folded = window.FG_isFolded ? window.FG_isFolded() : false;
-    if (folded || (drag && drag.moved)) pinTop = null;
+    if (folded) pinTop = null;
     const pt = pinTop !== null ? clamp(pinTop, 8, H - ph - 8) : clamp(bottom ? ay + ICON * z - ph : ay - ICON * z, 8, H - ph - 8);
-    if (!folded && !(drag && drag.moved) && app.offsetHeight > 0) pinTop = pt;
+    if (pinTop !== null) pinTop = pt;
+    lastBox = { pl, pt, pw, ph, z, border: app.clientLeft || 0 };
     if (!onGuide) {
       const room = Math.max(240 * z, H - 8 - pt) / z; // the sheet: down to the screen's edge at most
       if (app.style.maxHeight !== `${room}px`) app.style.maxHeight = `${room}px`;
@@ -419,30 +433,75 @@
   addEventListener("resize", layout);
 
   // ── dragging the tip or the guide's header moves both ──
+  // The part you hold stays exactly under your mouse: the guide (or the tip) moves by what the
+  // mouse moves, and the anchor follows from it. Which side it docks to is decided when you let go.
   let drag = null, justDragged = false;
   function startDrag(e, kind) {
     if (e.button !== 0 || (window.FG_isLocked && window.FG_isLocked())) return;
-    drag = { kind, x: e.clientX, y: e.clientY, fx: anchor.fx, fy: anchor.fy, moved: false, id: e.pointerId, el: e.currentTarget };
+    drag = { kind, x: e.clientX, y: e.clientY, moved: false, id: e.pointerId, el: e.currentTarget, right: document.body.classList.contains("dock-right") };
   }
+  const isRight = (cx) => { const side = prefs().ovSide || "auto"; return side === "auto" ? cx > innerWidth / 2 : side === "right"; };
   function moveDrag(e) {
     if (!drag || e.pointerId !== drag.id) return;
     if (e.buttons === 0) return endDrag(e); // the button came up somewhere we didn't hear (Alt+Tab, Win key)
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (!drag.moved && Math.hypot(dx, dy) < 5) return;
     if (!drag.moved) {
+      if (!lastBox || !lastTip) layout();
       drag.moved = true;
+      drag.box = { ...lastBox };
+      drag.tip = { ...lastTip };
       try { drag.el.setPointerCapture(drag.id); } catch {}
       document.body.classList.add("dragging");
+      document.body.classList.remove("snapping");
       lastHits = ""; // while dragging the whole window takes the mouse
       invoke("set_capture", { on: true }).catch(() => {});
     }
-    anchor = { fx: clamp(drag.fx + dx / innerWidth, 0, 1), fy: clamp(drag.fy + dy / innerHeight, 0, 1) };
+    placeDragged(dx, dy, drag.right);
     layout();
   }
+  // the anchor (where the tip sits, the end the guide grows from) for the guide or tip at this spot
+  function placeDragged(dx, dy, right) {
+    const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1);
+    if (drag.kind === "panel") {
+      const b = drag.box;
+      // lower than its height allows is fine: it fits itself into the room under the header
+      const pl = clamp(b.pl + dx, 8, W - b.pw - 8), pt = clamp(b.pt + dy, 8, H - Math.min(b.ph, 300 * z) - 8);
+      const bottom = pt + b.ph / 2 > H / 2;
+      anchor = { fx: clamp((right ? pl + b.pw - ICON * z : pl + ICON * z) / W, 0, 1), fy: clamp((bottom ? pt + b.ph - ICON * z : pt + ICON * z) / H, 0, 1) };
+      pinTop = pt;
+      return { pl, pt };
+    }
+    const t = drag.tip;
+    const tl = clamp(t.tl + dx, 6, W - t.tw - 6), tt = clamp(t.tt + dy, 6, H - t.th - 6);
+    anchor = { fx: clamp((right ? tl + t.tw - ICON * z : tl + ICON * z) / W, 0, 1), fy: clamp((tt + t.th / 2) / H, 0, 1) };
+    return { tl, tt };
+  }
   function endDrag(e) {
-    if (!drag || e.pointerId !== drag.id) return;
-    if (drag.moved) {
-      snapToEdge();
+    if (!drag || (e.pointerId !== undefined && e.pointerId !== drag.id)) return;
+    const d = drag;
+    if (d.moved) {
+      const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1), near = 48 * z;
+      const dx = (e.clientX ?? d.x) - d.x, dy = (e.clientY ?? d.y) - d.y;
+      let snapped = false;
+      if (d.kind === "panel") {
+        // let go: dock to the side its middle is on, and settle against a screen edge if it's close
+        const b = d.box, { pl, pt } = placeDragged(dx, dy, d.right);
+        let nl = pl, nt = pt;
+        if (nl < 8 + near) nl = 8; else if (nl + b.pw > W - 8 - near) nl = W - b.pw - 8;
+        if (nt < 8 + near) nt = 8;
+        snapped = nl !== pl || nt !== pt;
+        const right = isRight(nl + b.pw / 2);
+        d.box = { ...b, pl: 0, pt: 0 };
+        placeDragged(nl, nt, right);
+      } else {
+        const t = d.tip, { tl } = placeDragged(dx, dy, d.right);
+        placeDragged(dx, dy, isRight(tl + t.tw / 2));
+      }
+      drag = null;
+      if (d.kind === "tip") snapToEdge();
+      else if (snapped) { document.body.classList.add("snapping"); setTimeout(() => document.body.classList.remove("snapping"), 450); }
+      layout();
       justDragged = true;
       setTimeout(() => { justDragged = false; }, 0);
       saveAnchor();
@@ -451,6 +510,10 @@
     }
     drag = null;
   }
+  // The guide opens out of the tip; from the moment you use it (or it switches size), its header
+  // stays put: whatever grows or shrinks, the bottom moves. Pinned on the first touch, not when it
+  // opens, so a guide still settling in (its pictures, its size) is never pinned in a wrong place.
+  addEventListener("pointerdown", (e) => { if (pinTop === null && e.target.closest && e.target.closest("#app")) window.FG_HOST.holdHeader(); }, true);
   // let go near a screen edge: the tip settles against it, with a little spring
   function snapToEdge() {
     const W = innerWidth, H = innerHeight, z = Number(prefs().ovScale || 1);
