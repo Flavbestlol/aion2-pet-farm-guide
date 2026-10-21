@@ -51,8 +51,10 @@ Two parts that work together:
 - **Click it** and the guide grows out of it. It folds back by itself when you stop hunting, and opens again when you start.
 - **Drag it anywhere.** Near a screen edge it snaps, and the whole layout mirrors to face the middle of the screen.
 - **Lock it** (<kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd> or the padlock) and every click goes through to the game.
-- **Three sizes.** The tip; **compact**, the farming view (the monsters to kill with their pictures, the % ring, souls left, no map); and the **full** guide with the map and tabs. The button by the padlock switches between compact and full.
+- **Three sizes.** The tip; **compact**, the farming view (the monsters to kill with their pictures, the % ring, souls left, no map); and the **full** guide with the map and tabs. The button by the padlock switches between compact and full, and the header stays where it is: only the bottom moves.
 - **It sizes itself.** On the way to a new stop it shows the full guide with the way there, then goes back to compact 3 seconds after your first soul. Drag the compact guide's corner to make it wider or narrower (it rearranges itself to fit), or hold <kbd>Ctrl</kbd> and scroll over it to resize the whole thing.
+- **Rings or bars.** The small button at the end of the monster list switches between round portraits and bars that fill up as you farm, each with its % and the souls left.
+- **Make it yours.** Click the pencil by the padlock to edit the layout: drag any part (the monster, the directions, the monster list, the map, the loot strip) anywhere on screen, scroll over it to make it bigger or smaller, or click it for its options (the map's shape, loop and icons; the monster picture's size; rings or bars). Hide what you don't need and bring it back from the bar at the top. Compact and full each keep their own layout, and the parts you moved follow the guide wherever you drag it.
 - **Kill streaks catch fire.** Five souls in a row and the dial starts to smoulder; at 10 it burns, at 20 it blazes, at 40 it turns blue. A fuse under the counter shows how long you have to keep it going.
 
 ### Your whole route, one click away

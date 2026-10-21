@@ -60,7 +60,7 @@ body.locked .suggest .sb { opacity: 0.4; }
 .top {
   flex: none;
   display: grid;
-  grid-template-columns: 26px 1fr 26px auto auto auto;
+  grid-template-columns: 26px 1fr 26px; grid-auto-flow: column; grid-auto-columns: auto;
   align-items: center;
   gap: 6px;
   padding: 8px 8px 6px;
@@ -107,8 +107,8 @@ body.locked .suggest .sb { opacity: 0.4; }
 /* ── focus card ─────────────────────────────────────── */
 .stage { flex: none; padding: 10px 10px 0; position: relative; }
 .card { position: relative; }
-.card.out { animation: card-out 0.45s cubic-bezier(.5,0,.75,0) forwards; }
-.card.in { animation: card-in 0.5s cubic-bezier(.2,.8,.2,1); }
+.card.out > * { animation: card-out 0.45s cubic-bezier(.5,0,.75,0) forwards; }
+.card.in > * { animation: card-in 0.5s cubic-bezier(.2,.8,.2,1); }
 @keyframes card-out { to { transform: translateX(-40px); opacity: 0; } }
 @keyframes card-in { from { transform: translateX(40px); opacity: 0; } }
 
@@ -325,7 +325,7 @@ body.locked .mapbar, body.locked .mapgrip { opacity: 0.35; }
 .empty-guide b { color: var(--ink); display: block; font: 600 16px var(--num); margin-bottom: 6px; }
 
 /* ── compact: only the focus card ───────────────────── */
-body.compact .tabs, body.compact .queue, body.compact .mapzone, body.compact .loot { display: none; }
+body.compact .tabs, body.compact .qwrap, body.compact .mapzone, body.compact .loot { display: none; }
 body.compact .top { padding: 4px 6px 0; }
 body.compact .stage { padding: 6px 8px 8px; }
 
@@ -704,8 +704,9 @@ body.abyssmode .t1 .chev { stroke: var(--abyss); }
 .sizebtn { width: 20px; height: 26px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: var(--dim); }
 .sizebtn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; grid-area: 1 / 1; transition: opacity 0.2s, transform 0.3s cubic-bezier(.2,.9,.3,1.3); }
 .sizebtn:hover { color: var(--ink); }
-.sizebtn .shrink, body.vcompact .sizebtn .grow { opacity: 0; transform: scale(0.6); }
-body.vcompact .sizebtn .shrink { opacity: 1; transform: none; }
+/* the icon says what a click does: compact shows the arrows going out (bigger), full shows them coming in */
+.sizebtn .grow, body.vcompact .sizebtn .shrink { opacity: 0; transform: scale(0.6); }
+body.vcompact .sizebtn .grow { opacity: 1; transform: none; }
 body.folded .sizebtn { display: none; }
 body.ingame .sizebtn { color: rgba(255, 255, 255, 0.55); }
 body.locked #app .sizebtn, body.locked #app .sizebtn * { pointer-events: auto !important; }
@@ -829,3 +830,206 @@ body.nofx .blaze, body.nofx .firecall { display: none; }
 .qcell.home.now { opacity: 1; }
 .alike.outside { color: #cfe2ff; cursor: pointer; text-decoration: underline dotted rgba(207, 226, 255, 0.5); text-underline-offset: 3px; }
 .alike.outside:hover { color: #fff; }
+
+
+/* ── the monster list: rings or bars ──────────────────
+   Rings: a row of round portraits, each ring filling up. Bars: one row per monster, its picture,
+   its name and a bar that fills as you farm, with the % and the souls left. The small button at
+   the end of the list switches; the cells glide from one layout into the other. */
+.qwrap { display: flex; align-items: flex-start; gap: 2px; min-width: 0; }
+.qwrap[hidden] { display: none; }
+.qwrap .queue { flex: 1 1 auto; min-width: 0; }
+.qstyle {
+  flex: none; width: 20px; height: 20px; margin-top: 12px; padding: 0; border: 0; border-radius: 6px; cursor: pointer;
+  display: grid; place-items: center; color: var(--dim); background: none; opacity: 0.6; transition: opacity 0.2s, color 0.2s, background 0.2s;
+}
+.qstyle:hover { opacity: 1; color: var(--gold-hi); background: rgba(242, 195, 91, 0.1); }
+.qstyle svg { grid-area: 1 / 1; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transition: opacity 0.2s, transform 0.3s cubic-bezier(.2,.9,.3,1.3); }
+.qstyle .i-rings, .qwrap.bars .qstyle .i-bars { opacity: 0; transform: scale(0.6) rotate(-30deg); }
+.qwrap.bars .qstyle .i-rings { opacity: 1; transform: none; }
+body.vcompact .qstyle { margin-top: 10px; }
+body.hud .qstyle { color: rgba(255, 255, 255, 0.7); background: rgba(6, 8, 12, 0.55); filter: drop-shadow(0 1px 2px #000); }
+body.hud.side-right .qwrap { flex-direction: row-reverse; }
+body.locked #app .qstyle { pointer-events: none; }
+
+.qcell .qb { display: none; }
+.qwrap.bars .queue { flex-direction: column; gap: 4px; overflow: visible; min-height: 0; padding: 8px 0 6px; }
+.qwrap.bars .qcell {
+  width: auto; flex-direction: row; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; border-radius: 9px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)); text-align: left;
+}
+.qwrap.bars .qcell .qr, body.vcompact .qwrap.bars .qcell .qr { width: 32px; height: 32px; flex: none; }
+.qwrap.bars .qcell svg { opacity: 0; }
+.qwrap.bars .qcell .qm, body.vcompact .qwrap.bars .qcell .qm { display: block; position: absolute; inset: 0; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #1b2030; box-shadow: 0 0 0 1.5px var(--genus); }
+.qwrap.bars .qcell .qr > img:not(.qm), body.vcompact .qwrap.bars .qcell .qr > img:not(.qm) { inset: auto -4px -3px auto; width: 15px; height: 15px; border: 1.5px solid var(--genus); z-index: 1; }
+.qwrap.bars .qcell .qm:not([src]) + img { inset: 0; width: 32px; height: 32px; border: 0; }
+.qwrap.bars .qcell > .n { display: none; }
+.qwrap.bars .qcell .qb {
+  display: grid; flex: 1 1 auto; min-width: 0; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px;
+  animation: qb-in 0.45s cubic-bezier(.2,.8,.2,1) backwards;
+}
+@keyframes qb-in { from { opacity: 0; transform: translateX(-8px); } }
+.qb .qn { min-width: 0; font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qb .qp { font: 600 12px var(--num); color: var(--ink); font-variant-numeric: tabular-nums; }
+.qb .qbar { height: 5px; border-radius: 3px; background: rgba(236, 228, 208, 0.1); overflow: hidden; }
+.qb .qbar i {
+  display: block; height: 100%; width: var(--p, 0%); border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--genus) 55%, #000), var(--genus));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--genus) 60%, transparent);
+  transition: width 0.9s cubic-bezier(.2,.8,.2,1);
+}
+.qb .ql { font: 500 10.5px var(--num); color: var(--mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.qwrap.bars .qcell.now { background: linear-gradient(90deg, rgba(242, 195, 91, 0.18), rgba(242, 195, 91, 0.03)); box-shadow: inset 2px 0 0 var(--gold); }
+.qwrap.bars .qcell.now .qn { color: var(--ink); }
+.qwrap.bars .qcell.now .qp { color: var(--gold-hi); }
+.qwrap.bars .qcell.now .qr::after { inset: -3px; }
+.qwrap.bars .qcell.bonus .qp::before { content: "+"; }
+.qwrap.bars .qcell.hit .qbar i { filter: brightness(1.6); }
+.qwrap.bars .qcell.leave { animation: qb-leave 0.5s cubic-bezier(.5,0,.75,0) forwards; }
+@keyframes qb-leave { 30% { transform: scale(1.03); opacity: 1; } to { transform: translateX(-30px); opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -4px; } }
+.qwrap.bars .qcell { max-height: 48px; }
+/* a narrow compact guide: the souls left go, the % stays */
+@container guide (max-width: 230px) { .qb .ql { display: none; } .qb .qbar { grid-column: 1 / -1; } }
+/* the HUD: each row on its own fading strip */
+body.hud .qwrap.bars .qcell { background: var(--strip); border-radius: var(--strip-r); text-shadow: var(--halo); }
+body.hud .qwrap.bars .qcell.now { background: linear-gradient(var(--strip-dir), rgba(60, 44, 10, 0.85), rgba(40, 30, 8, 0.6) 60%, rgba(6, 8, 12, 0)); box-shadow: none; }
+body.hud .qwrap.bars .qcell .qr { box-shadow: none; }
+body.hud .qb .qbar { background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); }
+body.hud .qb .qn { color: rgba(255, 255, 255, 0.85); }
+body.hud.side-right .qwrap.bars .qcell { flex-direction: row-reverse; padding: 3px 3px 3px 8px; text-align: right; }
+body.hud.side-right .qwrap.bars .queue { flex-direction: column; }
+body.hud.side-right .qb { direction: rtl; }
+body.hud.side-right .qb > * { direction: ltr; }
+body.hud.side-right .qb .qbar i { margin-left: auto; background: linear-gradient(270deg, color-mix(in srgb, var(--genus) 55%, #000), var(--genus)); }
+body.hud.side-right .qwrap.bars .qcell .qr > img:not(.qm) { inset: auto auto -3px -4px; }
+body.ingame .qwrap.bars .qcell { border-radius: 2px; background: linear-gradient(90deg, rgba(8, 10, 14, 0.66), rgba(8, 10, 14, 0.2)); }
+body.apple .qwrap.bars .qcell { border-radius: 12px; }
+/* the switch: the list's height glides too */
+.qwrap .queue.morph { transition: height 0.42s cubic-bezier(.2,.8,.2,1); overflow: hidden; }
+.qwrap.bars .qcell.flip, .qcell.flip { transition: transform 0.42s cubic-bezier(.2,.8,.2,1); }
+body.nofx .qwrap.bars .qcell .qb { animation: none; }
+
+/* ── a size switch: the bottom rolls up to the header (or down from it); the header stays ── */
+#app.morphing { transition: clip-path 0.28s cubic-bezier(.3,.7,.3,1) !important; }
+#app.morphing .pane[data-pane="guide"] > * { transition: opacity 0.28s; }
+#app.morph-in .pane[data-pane="guide"] { animation: morph-in 0.34s cubic-bezier(.2,.8,.2,1); }
+@keyframes morph-in { from { opacity: 0.35; transform: translateY(-6px); } }
+
+/* ── edit mode (the overlay): move, resize or hide any part of the guide ──
+   Each part gets a dashed frame and its name. Drag it anywhere (it leaves the guide's column and
+   the rest closes up), scroll over it to make it bigger or smaller, click it for its options.
+   A part you moved keeps its place against the guide, on the side it's docked to. */
+.editbtn { width: 20px; height: 26px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: var(--dim); }
+.editbtn[hidden] { display: none; }
+.editbtn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.editbtn:hover, body.editing .editbtn { color: var(--gold-hi); }
+body.folded .editbtn, body.locked .editbtn { display: none; }
+body.ingame .editbtn { color: rgba(255, 255, 255, 0.55); }
+body.hud .editbtn { filter: drop-shadow(0 1px 2px #000); }
+@container guide (max-width: 230px) { body.vcompact .editbtn { display: none; } }
+
+/* scaled parts: in the column they reflow (zoom); moved off it they scale from the docked edge */
+[data-edit] { zoom: var(--ez, 1); }
+[data-edit].detached {
+  zoom: 1; scale: var(--ez, 1); position: absolute; z-index: 6; margin: 0 !important; width: var(--ew, auto);
+  left: var(--ex, 0px); top: var(--ey, 0px); translate: var(--fx, 0px) var(--fy, 0px); transform-origin: 0 0;
+}
+body.dock-right [data-edit].detached { left: auto; right: var(--ex, 0px); transform-origin: 100% 0; }
+body #app [data-edit].ehide { display: none !important; }
+/* a part moved off the guide has no frame around it: give it the guide's own backing */
+body.ov:not(.hud) [data-edit].detached { padding: 8px; border-radius: 12px; background: rgba(14, 16, 22, var(--ov-bg, 0.66)); border: 1px solid rgba(255, 255, 255, 0.09); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4); }
+body.ov:not(.hud) .mapzone.detached { padding: 6px; }
+.mapzone.detached { width: auto; }
+.mapzone.detached .mapwrap, body.hud .mapzone.detached .mapwrap { width: var(--msz, 220px); height: var(--msz, 220px); flex: none; margin: 0; align-self: auto; }
+.mapzone.detached .mapbar, body.hud .mapzone.detached .mapbar { width: var(--msz, 220px); margin: 0; padding-left: 0; padding-right: 0; }
+body.ov.edited .stage, body.ov.edited .card, body.ov.edited .pane[data-pane="guide"] { position: static; }
+body.ov.edited #app { overflow: visible; }
+/* the monster picture's own size */
+.dial { zoom: var(--pic, 1); }
+.focus { grid-template-columns: auto 1fr; }
+body.hud.side-right .focus { grid-template-columns: 1fr auto; }
+body.vcompact .focus { grid-template-columns: auto 1fr; }
+@container guide (max-width: 270px) { body.vcompact .focus { grid-template-columns: auto 1fr; } }
+@container guide (min-width: 360px) { body.vcompact .focus { grid-template-columns: auto 1fr; } }
+body.hud.side-right.vcompact .focus { grid-template-columns: 1fr auto; }
+
+body.editing [data-edit] {
+  cursor: move; position: relative; outline: 1.5px dashed rgba(242, 195, 91, 0.75); outline-offset: 3px; border-radius: 8px;
+  transition: outline-color 0.2s, box-shadow 0.2s; touch-action: none;
+}
+body.editing [data-edit].detached { position: absolute; }
+body.editing [data-edit] * { pointer-events: none !important; }
+body.editing [data-edit]:hover { outline-color: #ffe7a6; box-shadow: 0 0 0 6px rgba(242, 195, 91, 0.12); }
+body.editing [data-edit].picked { outline: 2px solid #ffe7a6; box-shadow: 0 0 0 6px rgba(242, 195, 91, 0.18), 0 0 22px rgba(242, 195, 91, 0.3); }
+body.editing [data-edit].grabbing { outline-style: solid; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 0 6px rgba(242, 195, 91, 0.2); z-index: 30; cursor: grabbing; }
+body.editing [data-edit]::after {
+  content: attr(data-label); position: absolute; left: 0; top: -15px; z-index: 31; padding: 0 6px; border-radius: 6px; pointer-events: none;
+  font: 700 9.5px/14px var(--num); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; text-shadow: none;
+  color: #17120a; background: var(--gold, #f2c35b); zoom: calc(1 / var(--ez, 1));
+}
+body.editing.dock-right [data-edit]::after { left: auto; right: 0; }
+body.editing [data-edit].detached::after { scale: calc(1 / var(--ez, 1)); zoom: 1; transform-origin: 0 100%; }
+body.editing.dock-right [data-edit].detached::after { transform-origin: 100% 100%; }
+body.editing .pane[data-pane="guide"] { overflow: visible; }
+body.editing .stage { padding-top: 18px; }
+body.editing .cgrip, body.editing .mapgrip { display: none !important; }
+body.editing .card .travel:not(.going) { display: grid; }
+/* snapping guides while you drag */
+.eguide { position: fixed; z-index: 70; pointer-events: none; background: rgba(255, 231, 166, 0.85); box-shadow: 0 0 6px rgba(242, 195, 91, 0.8); }
+.eguide.v { width: 1px; } .eguide.h { height: 1px; }
+
+/* the edit bar: what you're editing, the parts you hid (click to bring back), reset, done */
+.editbar {
+  position: fixed; z-index: 75; left: 50%; top: 14px; translate: -50% 0; zoom: var(--ov-scale, 1); max-width: calc(100vw - 24px);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 9px 12px 9px 16px; border-radius: 14px;
+  font: 13px/1.35 var(--ui, "Segoe UI", system-ui, sans-serif); color: #ece6d6; text-shadow: none;
+  background: linear-gradient(180deg, rgba(24, 27, 38, 0.97), rgba(13, 15, 22, 0.97));
+  border: 1px solid rgba(242, 195, 91, 0.45); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 24px rgba(242, 195, 91, 0.12);
+  animation: eb-in 0.35s cubic-bezier(.2,.9,.3,1.2);
+}
+.editbar[hidden] { display: none; }
+@keyframes eb-in { from { opacity: 0; transform: translateY(-12px) scale(0.97); } }
+.editbar .eb-t { display: flex; flex-direction: column; min-width: 0; }
+.editbar .eb-t b { font: 600 14px var(--num); color: #ffe7a6; }
+.editbar .eb-t span { font-size: 11.5px; color: #9aa1b4; }
+.editbar .eb-view { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, 0.06); }
+.editbar .eb-view button { padding: 3px 10px; border: 0; border-radius: 7px; background: none; color: #9aa1b4; font: 600 12px var(--num); cursor: pointer; }
+.editbar .eb-view button[aria-pressed="true"] { background: rgba(242, 195, 91, 0.22); color: #ffe7a6; }
+.editbar .eb-hidden { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.editbar .eb-hidden:empty { display: none; }
+.editbar .eb-hidden > span { font-size: 11.5px; color: #9aa1b4; margin-right: 2px; }
+.editbar .eb-chip { padding: 2px 9px; border-radius: 8px; border: 1px dashed rgba(242, 195, 91, 0.6); background: none; color: #ece6d6; font-size: 12px; cursor: pointer; }
+.editbar .eb-chip:hover { background: rgba(242, 195, 91, 0.14); color: #ffe7a6; }
+.editbar .eb-chip::before { content: "＋ "; color: var(--gold, #f2c35b); }
+.editbar .eb-btns { display: flex; gap: 6px; }
+
+/* a part's options: next to it */
+.editpop {
+  position: fixed; z-index: 76; width: 236px; zoom: var(--ov-scale, 1); padding: 10px 12px 12px; border-radius: 12px;
+  font: 12.5px/1.35 var(--ui, "Segoe UI", system-ui, sans-serif); color: #ece6d6; text-shadow: none;
+  background: linear-gradient(180deg, rgba(24, 27, 38, 0.98), rgba(13, 15, 22, 0.98));
+  border: 1px solid rgba(242, 195, 91, 0.45); box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
+  animation: ep-in 0.25s cubic-bezier(.2,.9,.3,1.25);
+}
+.editpop[hidden] { display: none; }
+@keyframes ep-in { from { opacity: 0; transform: scale(0.94); } }
+.editpop .ep-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.editpop .ep-h b { font: 600 13.5px var(--num); color: #ffe7a6; }
+.editpop .ep-x { width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: #9aa1b4; cursor: pointer; font-size: 15px; line-height: 1; }
+.editpop .ep-x:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.editpop .ep-r { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.editpop .ep-r + .ep-r { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.editpop .ep-r > span { color: #c9c3b4; }
+.editpop .ep-step { display: flex; align-items: center; gap: 4px; }
+.editpop .ep-step b { min-width: 40px; text-align: center; font: 600 12px var(--num); font-variant-numeric: tabular-nums; }
+.editpop .ep-step button, .editpop .ep-seg button {
+  min-width: 26px; height: 24px; padding: 0 8px; border-radius: 7px; cursor: pointer; font: 600 12px var(--num);
+  color: #ece6d6; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.editpop .ep-step button:hover, .editpop .ep-seg button:hover { background: rgba(255, 255, 255, 0.12); }
+.editpop .ep-seg { display: flex; gap: 3px; }
+.editpop .ep-seg button[aria-pressed="true"] { color: #17120a; background: var(--gold, #f2c35b); border-color: var(--gold, #f2c35b); }
+.editpop .ep-foot { display: flex; gap: 6px; margin-top: 10px; }
+.editpop .ep-foot .btn { flex: 1 1 auto; justify-content: center; white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+.qwrap.detached.bars .queue { min-width: 220px; }
+.editpop .ep-foot .ep-hide { color: #ffb3a1; border-color: rgba(255, 140, 110, 0.4); }

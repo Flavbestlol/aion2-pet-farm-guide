@@ -54,6 +54,8 @@
     overlay: true,
     defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, keepPlugin: false, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle", pluginView: "hidden" },
     onFold: () => requestAnimationFrame(layout),
+    // edit mode: while you drag a part, the whole window takes the mouse (it may leave the guide)
+    capture(on) { lastHits = ""; invoke("set_capture", { on: !!on }).catch(() => {}); if (!on) sendHits(); },
     summary() {
       const p = prefs();
       const show = { front: "game in front", running: "game running", always: "always" }[p.ovShow || "front"];
@@ -89,7 +91,7 @@
       const btns = h("div", "btnrow");
       const reset = h("button", "btn", "Reset position");
       reset.type = "button";
-      reset.addEventListener("click", () => { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); });
+      reset.addEventListener("click", () => { anchor = { ...DEFAULT_ANCHOR }; pinTop = null; saveAnchor(); layout(); });
       const quit = h("button", "btn", "Close overlay");
       quit.type = "button";
       quit.addEventListener("click", () => shutdown());
@@ -97,7 +99,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.16.1";
+  const VERSION = "1.17.0";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -349,6 +351,10 @@
   const ICON = 25; // from the tip's edge to its icon's centre, in CSS px before scaling
   let tipBox = null;
   let frameH = 0; // the guide tab's height on screen, last seen: where the header goes on every tab // the tip's last measured size on screen [w, h], kept while it is hidden
+  // Where the header sits while the guide is open. A size switch, or a part that comes or goes,
+  // changes how tall the guide is, never where its header is: the bottom moves, the header stays
+  // under your mouse. It moves only when you drag it, or as little as it takes to stay on screen.
+  let pinTop = null;
   function layout() {
     const tip = $(".tip"), app = $("#app"), toasts = $("#toasts");
     if (!tip || !app) return;
@@ -382,7 +388,10 @@
     if (onGuide && ah > 0) frameH = ah;
     const ph = frameH || ah;
     const pl = clamp(right ? ax + ICON * z - pw : ax - ICON * z, 8, W - pw - 8);
-    const pt = clamp(bottom ? ay + ICON * z - ph : ay - ICON * z, 8, H - ph - 8);
+    const folded = window.FG_isFolded ? window.FG_isFolded() : false;
+    if (folded || (drag && drag.moved)) pinTop = null;
+    const pt = pinTop !== null ? clamp(pinTop, 8, H - ph - 8) : clamp(bottom ? ay + ICON * z - ph : ay - ICON * z, 8, H - ph - 8);
+    if (!folded && !(drag && drag.moved) && app.offsetHeight > 0) pinTop = pt;
     if (!onGuide) {
       const room = Math.max(240 * z, H - 8 - pt) / z; // the sheet: down to the screen's edge at most
       if (app.style.maxHeight !== `${room}px`) app.style.maxHeight = `${room}px`;
@@ -403,6 +412,8 @@
       if (compact && H - (pt + bh) > 150 * z) { toasts.style.bottom = "auto"; toasts.style.top = `${pt + bh + 6 * z}px`; toasts.classList.add("below"); }
       else { toasts.style.top = "auto"; toasts.style.bottom = `${compact ? H - pt + 6 * z : H - (pt + bh) + 10 * z}px`; toasts.classList.remove("below"); }
     }
+    // parts you moved off the guide (edit mode) stay on screen wherever the guide goes
+    if (window.FG_afterLayout) { try { window.FG_afterLayout(); } catch (e) { console.warn(e); } }
     sendHits();
   }
   addEventListener("resize", layout);
@@ -524,13 +535,20 @@
     else if (folded) add($(".tip"));
     else if (document.body.classList.contains("hud") && document.body.dataset.tab === "guide") {
       // no card: only the floating parts take the mouse; the gaps between them belong to the game
-      for (const sel of [".top", ".tabs", ".dial", ".info", ".travel", ".suggest", ".notice", ".ovnotice", ".mapwrap", ".mapbar", ".loot .ticker", ".cgrip", ".alike"]) add($(sel));
+      for (const sel of [".top", ".tabs", ".dial", ".info", ".travel", ".suggest", ".notice", ".ovnotice", ".mapwrap", ".mapbar", ".loot .ticker", ".cgrip", ".alike", ".qstyle"]) add($(sel));
       if (window.FG_stopsOpen && window.FG_stopsOpen()) add($(".stoplist"));
       for (const q of document.querySelectorAll(".qcell")) add(q);
       for (const t of document.querySelectorAll("#toasts .toast")) add(t);
     } else {
       add($("#app"));
+      for (const d of document.querySelectorAll("[data-edit].detached")) add(d); // moved off the guide
       for (const t of document.querySelectorAll("#toasts .toast")) add(t);
+    }
+    // edit mode: every part takes the mouse as a whole (to drag it), plus the edit bar and its options
+    if (!folded && document.body.classList.contains("editing")) {
+      for (const b of document.querySelectorAll("[data-edit]")) add(b);
+      add($(".editbar"));
+      add($(".editpop"));
     }
     return out;
   }

@@ -113,7 +113,7 @@ body.hud .pane.tabin .settings > :nth-child(n + 6), body.hud .pane.tabin .statgr
 /* ── docked on the right: the guide is mirrored, so it grows out of the right edge ── */
 body.hud.side-right .top { padding: 8px 6px 8px 8px; }
 body.hud.side-right .tabs { margin: 6px 6px 0 auto; }
-body.hud.side-right .focus { grid-template-columns: 1fr 100px; }
+body.hud.side-right .focus { grid-template-columns: 1fr auto; }
 body.hud.side-right .focus .dial { order: 2; }
 body.hud.side-right .info { padding: 8px 10px 8px 18px; text-align: right; }
 body.hud.side-right .petline { flex-direction: row-reverse; }

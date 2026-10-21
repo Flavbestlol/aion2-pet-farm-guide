@@ -28,6 +28,7 @@
     foldbtn: $(".foldbtn"), sizebtn: $(".sizebtn"), cgrip: $(".cgrip"), maptitle: $(".maptitle"),
     title: $(".top .title"), sl: $(".stoplist"), slSeg: $(".sl-seg"), slFind: $(".sl-find"), slDone: $(".sl-done"), slSum: $(".sl-sum"), slBody: $(".sl-body"),
     track: $(".loot .track"), ticker: $(".loot .ticker"), notice: $(".notice"), suggest: $(".suggest"), streak: $(".dial .streak"),
+    qwrap: $(".qwrap"), qstyle: $(".qstyle"), editbtn: $(".editbtn"), editbar: $(".editbar"), editpop: $(".editpop"),
   };
   const RING = 2 * Math.PI * 46;
   const QRING = 2 * Math.PI * 19;
@@ -44,6 +45,9 @@
     // sizes: the open guide is compact or full (folded is the tip); farmSize is what to go back to
     // once you're farming, compactMap shows the map in compact, mapWhen: "always" | "way" (full only)
     view: "compact", farmSize: "compact", compactMap: false, mapWhen: "always", cw: 0,
+    // the monster list as rings or bars; the layout you set in edit mode (overlay), per size:
+    // { compact: { part: { x, y, w, s, pic, hide } }, full: {…} }
+    qStyle: "ring", layout: null,
   };
   let prefs = { ...DEFAULTS };
   let character = null;
@@ -379,12 +383,12 @@
   }
 
   // the map shows: in full (always, or only on the way there), in compact only if you asked for it
-  const mapOn = (m) => !!prefs.map && (isCompact() ? !!prefs.compactMap : prefs.mapWhen !== "way" || travelling(m));
+  const mapOn = (m) => !!prefs.map && (isCompact() ? !!prefs.compactMap : prefs.mapWhen !== "way" || editing || travelling(m));
   function renderGuide(opts = {}) {
     const m = getModel();
     const has = !!m;
     els.card.hidden = !has;
-    els.queue.hidden = !has;
+    els.qwrap.hidden = !has;
     els.loot.hidden = !has || !prefs.loot || !m.loot.length;
     renderNotice();
     const showMap = has && mapOn(m);
@@ -662,7 +666,11 @@
       mi.alt = "";
       mi.draggable = false;
       r.append(mi, img);
-      el.append(r, h("span", "n"));
+      // the bar view: name and %, the bar and the souls left
+      const qb = h("span", "qb"), bar = h("span", "qbar");
+      bar.append(h("i"));
+      qb.append(h("span", "qn"), h("span", "qp"), bar, h("span", "ql"));
+      el.append(r, h("span", "n"), qb);
       el.style.setProperty("--genus", colorOf(row.pid));
       el.addEventListener("animationend", (e) => { if (e.animationName === "pop-in") el.classList.remove("enter"); if (e.animationName === "pulse") el.classList.remove("hit"); });
       qEls.set(row.pid, el);
@@ -673,6 +681,12 @@
     const qm = el.querySelector(".qm"), art = mobArt(row.top);
     if (qm.getAttribute("src") !== art) { if (art) qm.src = art; else qm.removeAttribute("src"); }
     const mob = D.mobs[row.top];
+    const done = Math.max(0, Math.min(1, 1 - row.left / total));
+    el.querySelector(".qn").textContent = mob ? mob.n : petName(row.pid);
+    el.querySelector(".qp").textContent = `${Math.floor(done * 100)}%`;
+    el.querySelector(".ql").textContent = `${row.left} left`;
+    el.dataset.p = `${(done * 100).toFixed(1)}%`;
+    if (!el.classList.contains("grow0")) el.querySelector(".qbar i").style.setProperty("--p", el.dataset.p);
     el.title = `${mob ? `${mob.n} → ` : ""}${petName(row.pid)} · ${row.left} left${row.bonus ? " · bonus: also drops here, its own stop is elsewhere" : ""}`;
     el.classList.toggle("bonus", row.bonus);
     return el;
@@ -1809,6 +1823,20 @@
       row("While farming", "The size the guide goes back to once you're farming. The button by the padlock switches compact and full any time", seg("farmSize", sizes));
       row("Open on a new stop", "On the way to a new stop: the full guide with the map. 3 s after your first soul there: back to your farming size", toggle("smartOpen"));
       row("Map in compact", "Show the map in the compact guide too", toggle("compactMap", () => { applyView(); render(); }));
+      row("Monster list", "Rings, or bars that fill up. Or the small button at the end of the list", seg("qStyle", [["ring", "Rings"], ["bar", "Bars"]], applyQStyle));
+      if (HOST) {
+        const lb = h("div", "btnrow");
+        const ed = h("button", "btn gold", "Edit layout");
+        ed.type = "button";
+        ed.addEventListener("click", () => startEdit());
+        const rs = h("button", "btn", "Reset");
+        rs.type = "button";
+        rs.title = "Both sizes back to how they were";
+        rs.addEventListener("click", () => { prefs.layout = null; prefs.mapSize = null; savePrefs(); applyLayout(); applyMapFrame(); render(); flash("↺ Layout back to how it was"); });
+        lb.append(ed, rs);
+        const n = prefs.layout ? Object.values(prefs.layout).reduce((a, V) => a + Object.values(V || {}).filter((L) => L && Object.keys(L).length).length, 0) : 0;
+        row("Layout", `Move, resize or hide any part of the guide: the pencil by the padlock${n ? ` · ${n} part${n === 1 ? "" : "s"} changed` : ""}`, lb);
+      }
       if (!HOST) row("Tip mode", "Fold the guide into a small tip; click the tip to open it. Shrink the window by its edge to fit", toggle("tip", () => { prefs.folded = false; applyTip(); render(); }));
       if (prefs.tip) {
         if (!HOST) row("Tip position", "", seg("tipPos", [["top", "Top"], ["bottom", "Bottom"], ["left", "Left"], ["right", "Right"], ["center", "Middle"]], applyTip));
@@ -2006,6 +2034,473 @@
     els.cgrip.addEventListener("pointercancel", up);
   });
   els.cgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.cw = 0; savePrefs(); applyView(); });
+  // ── the monster list: rings or bars ──
+  // The small button at the end of the list switches. The cells glide from the row into the stack
+  // (or back), the list's height glides with them, and the bars fill up from empty.
+  const kOf = (el) => (el.getBoundingClientRect().width / (el.offsetWidth || 1)) || 1; // screen px per CSS px
+  function applyQStyle() {
+    const bars = prefs.qStyle === "bar";
+    els.qwrap.classList.toggle("bars", bars);
+    els.qstyle.title = bars ? "Show the monsters as rings" : "Show the monsters as bars";
+    els.qstyle.setAttribute("aria-label", els.qstyle.title);
+  }
+  function setQStyle(style) {
+    if ((prefs.qStyle || "ring") === style) return;
+    prefs.qStyle = style;
+    savePrefs();
+    const q = els.queue, cells = [...q.children].filter((c) => !c.classList.contains("leave"));
+    const anim = !!prefs.effects && visible(q) && cells.length > 0;
+    const first = anim ? cells.map((c) => c.getBoundingClientRect()) : null;
+    const h0 = q.offsetHeight;
+    if (anim && style === "bar") for (const c of cells) { c.classList.add("grow0"); c.querySelector(".qbar i").style.setProperty("--p", "0%"); }
+    applyQStyle();
+    Sound.tick();
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+    if (!anim) return;
+    const k = kOf(q), h1 = q.offsetHeight;
+    cells.forEach((c, i) => {
+      const r = c.getBoundingClientRect();
+      c.classList.remove("flip");
+      c.style.transform = `translate(${(first[i].left - r.left) / k}px, ${(first[i].top - r.top) / k}px)`;
+    });
+    q.style.height = `${h0}px`;
+    q.classList.add("morph");
+    void q.offsetHeight;
+    for (const c of cells) { c.classList.add("flip"); c.style.transform = ""; }
+    q.style.height = `${h1}px`;
+    // the bars fill up from empty, a little after the rows land
+    setTimeout(() => { for (const c of cells) { c.classList.remove("grow0"); c.querySelector(".qbar i").style.setProperty("--p", c.dataset.p || "0%"); } }, 160);
+    clearTimeout(q._morph);
+    q._morph = setTimeout(() => { q.classList.remove("morph"); q.style.height = ""; for (const c of cells) c.classList.remove("flip"); if (HOST && HOST.onFold) HOST.onFold(isFolded()); }, 480);
+  }
+  els.qstyle.addEventListener("click", (e) => { e.stopPropagation(); setQStyle(prefs.qStyle === "bar" ? "ring" : "bar"); });
+
+  // ── a size switch: the bottom rolls up to the header, or down from it; the header stays put ──
+  // (the overlay keeps the header where it is; here the guide's bottom edge glides to its new place)
+  let morphTimer = 0;
+  function morphView(apply) {
+    const app = $("#app"), cls = document.body.classList;
+    clearTimeout(morphTimer);
+    app.classList.remove("morphing", "morph-in");
+    app.style.clipPath = "";
+    if (!prefs.effects || tab !== "guide" || isFolded() || editing || !app.getBoundingClientRect().height) return apply();
+    const h0 = app.offsetHeight;
+    // how tall the other size is: measure it once, without painting it
+    const was = [cls.contains("vcompact"), cls.contains("vcmap")];
+    cls.toggle("vcompact", isCompact());
+    cls.toggle("vcmap", isCompact() && !!prefs.compactMap);
+    const h1 = app.offsetHeight;
+    cls.toggle("vcompact", was[0]);
+    cls.toggle("vcmap", was[1]);
+    if (Math.abs(h1 - h0) < 6) return apply();
+    const clip = (b) => `inset(-2000px -2000px ${Math.max(0, b)}px -2000px)`;
+    const done = () => { app.classList.remove("morphing"); app.style.clipPath = ""; };
+    if (h1 < h0) {
+      // smaller: the bottom rolls up to the new height first, then the compact guide is there
+      app.style.clipPath = clip(0);
+      void app.offsetHeight;
+      app.classList.add("morphing");
+      app.style.clipPath = clip(h0 - h1);
+      morphTimer = setTimeout(() => {
+        done();
+        apply();
+        app.classList.add("morph-in");
+        morphTimer = setTimeout(() => app.classList.remove("morph-in"), 360);
+      }, 280);
+    } else {
+      // bigger: the full guide is there at once, its bottom rolls down from where compact ended
+      apply();
+      const h2 = app.offsetHeight;
+      app.style.clipPath = clip(h2 - h0);
+      void app.offsetHeight;
+      app.classList.add("morphing", "morph-in");
+      app.style.clipPath = clip(0);
+      morphTimer = setTimeout(() => { done(); app.classList.remove("morph-in"); }, 340);
+    }
+  }
+
+  // ── edit mode (the overlay): move, resize, hide any part; click one for its options ──
+  // A part you drag leaves the guide's column (the rest closes up) and keeps its place against the
+  // guide, measured from the edge the guide is docked to, so it follows the guide anywhere. Scroll
+  // over a part to make it bigger or smaller; click it for its options; double-click to put it back.
+  // Each size (compact, full) has its own layout.
+  const EDIT_PARTS = ["focus", "travel", "queue", "map", "loot"];
+  const PART_NAME = { focus: "Monster", travel: "Directions", queue: "Monster list", map: "Map", loot: "Also drops" };
+  const partEl = (b) => $(`[data-edit="${b}"]`);
+  let editing = false, picked = null;
+  const viewKey = () => (isCompact() ? "compact" : "full");
+  function lay(b, view = viewKey()) {
+    if (!prefs.layout || typeof prefs.layout !== "object") prefs.layout = {};
+    const V = prefs.layout[view] && typeof prefs.layout[view] === "object" ? prefs.layout[view] : (prefs.layout[view] = {});
+    return V[b] && typeof V[b] === "object" ? V[b] : (V[b] = {});
+  }
+  const peek = (b, view = viewKey()) => (HOST && prefs.layout && prefs.layout[view] && prefs.layout[view][b]) || {};
+  const isOff = (b, view = viewKey()) => {
+    const L = peek(b, view);
+    if (b === "map") return !prefs.map || (view === "compact" ? !prefs.compactMap : !!L.hide);
+    if (b === "loot") return !prefs.loot || !!L.hide;
+    return !!L.hide;
+  };
+  const flipX = () => (document.body.classList.contains("dock-right") ? -1 : 1);
+  function applyLayout() {
+    let moved = false;
+    for (const b of EDIT_PARTS) {
+      const el = partEl(b), L = peek(b);
+      if (!el) continue;
+      const s = b !== "map" && L.s && L.s !== 1 ? L.s : 0;
+      if (s) el.style.setProperty("--ez", String(s)); else el.style.removeProperty("--ez");
+      const det = Number.isFinite(L.x) && Number.isFinite(L.y);
+      el.classList.toggle("detached", det);
+      if (det) {
+        moved = true;
+        el.style.setProperty("--ex", `${L.x}px`);
+        el.style.setProperty("--ey", `${L.y}px`);
+        if (L.w) el.style.setProperty("--ew", `${L.w}px`); else el.style.removeProperty("--ew");
+      } else for (const v of ["--ex", "--ey", "--ew", "--fx", "--fy"]) el.style.removeProperty(v);
+      el.classList.toggle("ehide", !!L.hide && !(b === "map" && isCompact()));
+    }
+    const pic = peek("focus").pic;
+    if (pic && pic !== 1) els.dial.style.setProperty("--pic", String(pic)); else els.dial.style.removeProperty("--pic");
+    document.body.classList.toggle("edited", moved);
+    fitDetached();
+  }
+  // a part moved off the guide stays on screen wherever the guide goes (nudged in, not saved)
+  function fitDetached() {
+    if (!HOST) return;
+    const app = $("#app"), k = kOf(app), W = innerWidth, H = innerHeight;
+    for (const el of $$("[data-edit].detached")) {
+      if (el.classList.contains("grabbing")) continue;
+      el.style.removeProperty("--fx");
+      el.style.removeProperty("--fy");
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
+      const dx = r.left < 4 ? 4 - r.left : r.right > W - 4 ? Math.max(4 - r.left, W - 4 - r.right) : 0;
+      const dy = r.top < 4 ? 4 - r.top : r.bottom > H - 4 ? Math.max(4 - r.top, H - 4 - r.bottom) : 0;
+      if (dx) el.style.setProperty("--fx", `${dx / k}px`);
+      if (dy) el.style.setProperty("--fy", `${dy / k}px`);
+    }
+  }
+  window.FG_afterLayout = () => { fitDetached(); placePop(); };
+  function relayout() {
+    applyView();
+    applyLayout();
+    applyMapFrame();
+    render();
+    if (editing) renderEditBar();
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+  }
+
+  function startEdit() {
+    if (!HOST || editing || prefs.locked) return;
+    if (isFolded()) unfold(true);
+    editing = true;
+    document.body.classList.add("editing");
+    closeStops(true);
+    if (tab !== "guide") selectTab("guide");
+    els.editbar.hidden = false;
+    renderEditBar();
+    render();
+    Sound.open();
+    if (HOST.onFold) HOST.onFold(false);
+  }
+  function endEdit() {
+    if (!editing) return;
+    editing = false;
+    closePop();
+    document.body.classList.remove("editing");
+    els.editbar.hidden = true;
+    savePrefs();
+    render();
+    Sound.close();
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+  }
+  els.editbtn.hidden = !HOST;
+  els.editbtn.addEventListener("click", (e) => { e.stopPropagation(); editing ? endEdit() : startEdit(); });
+  addEventListener("keydown", (e) => { if (editing && e.key === "Escape") { if (picked) closePop(); else endEdit(); } });
+
+  function renderEditBar() {
+    const bar = els.editbar;
+    let view = bar.querySelector(".eb-view");
+    if (!view) {
+      view = h("div", "eb-view");
+      for (const [v, label] of [["compact", "Compact"], ["full", "Full"]]) {
+        const b = h("button", "", label);
+        b.type = "button";
+        b.dataset.v = v;
+        b.title = `Edit the ${label.toLowerCase()} guide (each size has its own layout)`;
+        b.addEventListener("click", () => { closePop(); setView(v, true); relayout(); });
+        view.append(b);
+      }
+      bar.querySelector(".eb-t").after(view);
+    }
+    for (const b of view.children) b.setAttribute("aria-pressed", String(b.dataset.v === viewKey()));
+    const hid = bar.querySelector(".eb-hidden");
+    hid.replaceChildren();
+    const off = EDIT_PARTS.filter((b) => !(b === "loot" && isCompact()) && isOff(b));
+    if (off.length) hid.append(h("span", "", "Hidden:"));
+    for (const b of off) {
+      const c = h("button", "eb-chip", PART_NAME[b]);
+      c.type = "button";
+      c.title = `Show ${PART_NAME[b].toLowerCase()} again`;
+      c.addEventListener("click", () => showPart(b));
+      hid.append(c);
+    }
+  }
+  {
+    els.editbar.querySelector(".eb-done").addEventListener("click", () => endEdit());
+    els.editbar.querySelector(".eb-reset").addEventListener("click", () => {
+      closePop();
+      if (prefs.layout) delete prefs.layout[viewKey()];
+      prefs.mapSize = null;
+      if (isCompact()) prefs.compactMap = false; else prefs.map = true;
+      prefs.loot = true;
+      savePrefs();
+      relayout();
+      flash(`↺ ${isCompact() ? "Compact" : "Full"} guide back to how it was`);
+    });
+  }
+  function hidePart(b) {
+    closePop();
+    if (b === "map" && isCompact()) prefs.compactMap = false;
+    else lay(b).hide = true;
+    savePrefs();
+    relayout();
+    Sound.slide(false);
+  }
+  function showPart(b) {
+    if (b === "map") { prefs.map = true; if (isCompact()) prefs.compactMap = true; }
+    if (b === "loot") prefs.loot = true;
+    delete lay(b).hide;
+    savePrefs();
+    relayout();
+    Sound.slide(true);
+    const el = partEl(b);
+    if (el) { el.classList.add("picked"); setTimeout(() => el.classList.remove("picked"), 900); }
+  }
+  function putBack(b) {
+    const L = lay(b);
+    delete L.x; delete L.y; delete L.w;
+    savePrefs();
+    relayout();
+  }
+  // size: the map by its own size (a crisp canvas), the rest by scale
+  const sizeOf = (b) => (b === "map" ? prefs.mapSize || defaultMapSize() : peek(b).s || 1);
+  function resizePart(b, dir, fine) {
+    if (b === "map") {
+      if (!document.body.classList.contains("map-sized")) prefs.mapSize = Math.round(els.mapwrap.offsetHeight);
+      prefs.mapSize = Math.round(Math.max(MAP_MIN, Math.min(MAP_MAX, sizeOf("map") + dir * (fine ? 10 : 20))));
+      applyMapFrame();
+      if (mapView) setTimeout(() => mapView.resize(), 40);
+    } else {
+      const L = lay(b);
+      L.s = Math.round(Math.max(0.5, Math.min(1.8, (L.s || 1) + dir * (fine ? 0.05 : 0.1))) * 100) / 100;
+      if (L.s === 1) delete L.s;
+      applyLayout();
+    }
+    savePrefs();
+    if (picked === b) fillPop();
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+  }
+
+  // ── dragging a part ──
+  let eDrag = null;
+  const guides = [];
+  function showGuides(xs, ys) {
+    while (guides.length) guides.pop().remove();
+    for (const x of xs) { const g = h("div", "eguide v"); g.style.cssText = `left:${x}px;top:0;height:100vh`; document.body.append(g); guides.push(g); }
+    for (const y of ys) { const g = h("div", "eguide h"); g.style.cssText = `top:${y}px;left:0;width:100vw`; document.body.append(g); guides.push(g); }
+  }
+  function detach(b, el) {
+    const app = $("#app"), ar = app.getBoundingClientRect(), k = kOf(app), r = el.getBoundingClientRect(), L = lay(b);
+    if (b === "map" && !document.body.classList.contains("map-sized")) { prefs.mapSize = Math.round(els.mapwrap.offsetHeight); applyMapFrame(); }
+    const right = flipX() < 0;
+    // the map and the monster list are as wide as what they show; the text parts keep their width
+    if (b === "map" || b === "queue") delete L.w;
+    else L.w = Math.round(r.width / k / (L.s || 1));
+    L.x = (right ? ar.right - r.right : r.left - ar.left) / k;
+    L.y = (r.top - ar.top) / k;
+    applyLayout();
+    // where it landed may differ by the guide's border or padding: line it up exactly
+    const n = el.getBoundingClientRect();
+    L.x += (right ? n.right - r.right : r.left - n.left) / k;
+    L.y += (r.top - n.top) / k;
+    applyLayout();
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (!editing || e.button !== 0) return;
+    const el = e.target.closest && e.target.closest("[data-edit]");
+    if (!el) { if (picked && !e.target.closest(".editpop, .editbar")) closePop(); return; }
+    e.preventDefault();
+    e.stopPropagation();
+    eDrag = { b: el.dataset.edit, el, x: e.clientX, y: e.clientY, id: e.pointerId, moved: false };
+  }, true);
+  addEventListener("pointermove", (e) => {
+    const d = eDrag;
+    if (!d || e.pointerId !== d.id) return;
+    if (e.buttons === 0) return endPartDrag(e);
+    let dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (!d.moved) {
+      if (Math.hypot(dx, dy) < 5) return;
+      d.moved = true;
+      closePop();
+      if (!d.el.classList.contains("detached")) detach(d.b, d.el);
+      d.el.style.removeProperty("--fx");
+      d.el.style.removeProperty("--fy");
+      d.el.classList.add("grabbing");
+      d.r0 = d.el.getBoundingClientRect();
+      d.L0 = { x: lay(d.b).x, y: lay(d.b).y };
+      d.k = kOf($("#app"));
+      // what it lines up with: the header and every other part on screen
+      d.xs = []; d.ys = [];
+      for (const o of [$(".top"), ...$$("[data-edit]")]) {
+        if (o === d.el || !visible(o)) continue;
+        const r = o.getBoundingClientRect();
+        d.xs.push(r.left, r.right);
+        d.ys.push(r.top, r.bottom);
+      }
+      if (HOST && HOST.capture) HOST.capture(true);
+    }
+    const { r0 } = d, snap = 7;
+    let nl = r0.left + dx, nt = r0.top + dy;
+    const gx = [], gy = [];
+    if (!e.altKey) {
+      let best = snap + 1, bx = 0, gxv = null;
+      for (const x of d.xs) for (const edge of [nl, nl + r0.width]) { const dd = x - edge; if (Math.abs(dd) < Math.abs(best)) { best = dd; bx = dd; gxv = x; } }
+      if (gxv !== null && Math.abs(best) <= snap) { nl += bx; gx.push(gxv); }
+      best = snap + 1; let by = 0, gyv = null;
+      for (const y of d.ys) for (const edge of [nt, nt + r0.height]) { const dd = y - edge; if (Math.abs(dd) < Math.abs(best)) { best = dd; by = dd; gyv = y; } }
+      if (gyv !== null && Math.abs(best) <= snap) { nt += by; gy.push(gyv); }
+    }
+    nl = Math.max(4, Math.min(innerWidth - r0.width - 4, nl));
+    nt = Math.max(4, Math.min(innerHeight - r0.height - 4, nt));
+    showGuides(gx, gy);
+    const L = lay(d.b);
+    L.x = d.L0.x + (flipX() * (nl - r0.left)) / d.k;
+    L.y = d.L0.y + (nt - r0.top) / d.k;
+    d.el.style.setProperty("--ex", `${L.x}px`);
+    d.el.style.setProperty("--ey", `${L.y}px`);
+  });
+  function endPartDrag(e) {
+    const d = eDrag;
+    if (!d || (e && e.pointerId !== undefined && e.pointerId !== d.id)) return;
+    eDrag = null;
+    showGuides([], []);
+    if (!d.moved) return openPop(d.b);
+    d.el.classList.remove("grabbing");
+    const L = lay(d.b);
+    L.x = Math.round(L.x); L.y = Math.round(L.y);
+    savePrefs();
+    applyLayout();
+    if (HOST && HOST.capture) HOST.capture(false);
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+    Sound.tick();
+  }
+  addEventListener("pointerup", endPartDrag);
+  addEventListener("pointercancel", endPartDrag);
+  addEventListener("blur", () => { if (eDrag) endPartDrag(); });
+  document.addEventListener("dblclick", (e) => {
+    if (!editing) return;
+    const el = e.target.closest && e.target.closest("[data-edit]");
+    if (el && el.classList.contains("detached")) { e.preventDefault(); e.stopPropagation(); closePop(); putBack(el.dataset.edit); }
+  }, true);
+  // scroll over a part: bigger or smaller (Ctrl + scroll still sizes the whole overlay)
+  document.addEventListener("wheel", (e) => {
+    if (!editing || e.ctrlKey) return;
+    const el = e.target.closest && e.target.closest("[data-edit]");
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resizePart(el.dataset.edit, e.deltaY < 0 ? 1 : -1, true);
+  }, { passive: false, capture: true });
+
+  // ── a part's options ──
+  function closePop() {
+    if (picked) { const el = partEl(picked); if (el) el.classList.remove("picked"); }
+    picked = null;
+    els.editpop.hidden = true;
+  }
+  function openPop(b) {
+    if (picked === b) return closePop();
+    closePop();
+    picked = b;
+    partEl(b).classList.add("picked");
+    els.editpop.hidden = false;
+    fillPop();
+    Sound.tick();
+  }
+  function fillPop() {
+    const b = picked, pop = els.editpop, L = peek(b);
+    if (!b) return;
+    pop.replaceChildren();
+    const hd = h("div", "ep-h");
+    const x = h("button", "ep-x", "×");
+    x.type = "button";
+    x.title = "Close";
+    x.addEventListener("click", closePop);
+    hd.append(h("b", "", PART_NAME[b]), x);
+    pop.append(hd);
+    const row = (label, ctl) => { const r = h("div", "ep-r"); r.append(h("span", "", label), ctl); pop.append(r); };
+    const step = (text, minus, plus) => {
+      const s = h("div", "ep-step");
+      const m = h("button", "", "−"), p = h("button", "", "+");
+      m.type = p.type = "button";
+      m.addEventListener("click", minus);
+      p.addEventListener("click", plus);
+      s.append(m, h("b", "", text), p);
+      return s;
+    };
+    const seg = (opts, cur, set) => {
+      const s = h("div", "ep-seg");
+      for (const [v, label] of opts) {
+        const btn = h("button", "", label);
+        btn.type = "button";
+        btn.setAttribute("aria-pressed", String(v === cur));
+        btn.addEventListener("click", () => { set(v); savePrefs(); fillPop(); Sound.tick(); });
+        s.append(btn);
+      }
+      return s;
+    };
+    row("Size", step(b === "map" ? `${sizeOf("map")}px` : `${Math.round(sizeOf(b) * 100)}%`, () => resizePart(b, -1), () => resizePart(b, 1)));
+    if (b === "focus") {
+      const pic = (v) => { const P = lay("focus"); P.pic = Math.round(Math.max(0.6, Math.min(1.6, (P.pic || 1) + v)) * 100) / 100; if (P.pic === 1) delete P.pic; savePrefs(); applyLayout(); fillPop(); if (HOST && HOST.onFold) HOST.onFold(false); };
+      row("Picture", step(`${Math.round((L.pic || 1) * 100)}%`, () => pic(-0.1), () => pic(0.1)));
+    }
+    if (b === "queue") row("Style", seg([["ring", "Rings"], ["bar", "Bars"]], prefs.qStyle === "bar" ? "bar" : "ring", setQStyle));
+    if (b === "map") {
+      row("Shape", seg([["round", "Round"], ["square", "Square"]], mapShape(), (v) => { prefs.mapShape = v; applyMapFrame(); }));
+      row("Farming loop", seg([[true, "On"], [false, "Off"]], prefs.mapLoop !== false, (v) => { prefs.mapLoop = v; applyMapFrame(); model = null; render(); }));
+      row("Monster icons", seg([[true, "On"], [false, "Off"]], prefs.mapIcons !== false, (v) => { prefs.mapIcons = v; applyMapFrame(); }));
+      if (!isCompact()) row("Shows", seg([["always", "Always"], ["way", "On the way"]], prefs.mapWhen === "way" ? "way" : "always", (v) => { prefs.mapWhen = v; }));
+    }
+    const foot = h("div", "ep-foot");
+    const btn = (text, cls, fn, title) => { const k = h("button", `btn ${cls}`, text); k.type = "button"; if (title) k.title = title; k.addEventListener("click", fn); foot.append(k); };
+    if (Number.isFinite(L.x)) btn("Put back", "", () => { const v = b; closePop(); putBack(v); }, "Back into the guide's column (or double-click it)");
+    btn("Reset", "", () => {
+      const P = lay(b);
+      for (const k of ["x", "y", "w", "s", "pic"]) delete P[k];
+      if (b === "map") prefs.mapSize = null;
+      savePrefs();
+      relayout();
+      fillPop();
+    }, "Its place, size and options as they were");
+    btn("Hide", "ep-hide", () => hidePart(b), "Hide it (bring it back from the bar at the top)");
+    pop.append(foot);
+    placePop();
+  }
+  // next to the part: on the side with room, kept on screen
+  function placePop() {
+    const pop = els.editpop, el = picked && partEl(picked);
+    if (!el || pop.hidden) return;
+    // its left/top and size are in the overlay's size (zoom); its pop-in scale doesn't count
+    const kz = parseFloat(getComputedStyle(pop).zoom) || 1;
+    const r = el.getBoundingClientRect(), W = innerWidth, H = innerHeight, pw = pop.offsetWidth * kz, ph = pop.offsetHeight * kz, gap = 12;
+    let x = r.right + gap <= W - pw - 6 ? r.right + gap : r.left - gap - pw >= 6 ? r.left - gap - pw : Math.min(W - pw - 6, Math.max(6, r.left));
+    let y = x === r.right + gap || x === r.left - gap - pw ? r.top : r.bottom + gap;
+    if (y + ph > H - 6) y = Math.max(6, H - ph - 6);
+    pop.style.left = `${Math.max(6, x) / kz}px`;
+    pop.style.top = `${y / kz}px`;
+  }
+
   function applyPrefs() {
     applyLock();
     applyTip();
@@ -2017,6 +2512,8 @@
     document.body.classList.toggle("hud", prefs.theme === "hud");
     if (mapView && mapView.theme !== prefs.theme) mapView.setTheme(prefs.theme);
     applyMapFrame();
+    applyQStyle();
+    applyLayout();
     FX.enabled = !!prefs.effects;
     Sound.enabled = !!prefs.sounds;
     Sound.volume = prefs.volume;
@@ -2036,10 +2533,13 @@
     document.documentElement.style.setProperty("--cw", prefs.cw ? `${prefs.cw}px` : "");
     if (isCompact() && tab !== "guide") selectTab("guide");
     if (mapView) setTimeout(() => mapView.resize(), 60);
+    applyLayout(); // each size has its own layout
+    if (editing) renderEditBar();
     if (HOST && HOST.onFold) HOST.onFold(isFolded());
   }
   // manual: you picked it, so it's also the size you farm in from now on
   function setView(v, manual) {
+    if (editing && !manual) return; // nothing switches by itself while you edit the layout
     if (manual && v !== "tip") prefs.farmSize = v;
     if (v === "tip") { savePrefs(); return fold(); }
     const was = prefs.view;
@@ -2047,15 +2547,14 @@
     savePrefs();
     if (isFolded()) return unfold(true);
     if (was === v) return;
-    applyView();
-    render();
+    morphView(() => { applyView(); render(); });
   }
   els.sizebtn.addEventListener("click", () => { autoFull = null; setView(isCompact() ? "full" : "compact", true); });
   let autoFull = null; // the stop key the guide went full for by itself (it goes back to your farming size there)
   // back to the size you farm in (a few seconds after your first soul at a stop it opened itself for)
   function backToFarmSize(key) {
     setTimeout(() => {
-      if (currentStop()?.key !== key || Date.now() - lastUse < 2500) return; // you moved on, or you're using it
+      if (editing || currentStop()?.key !== key || Date.now() - lastUse < 2500) return; // you moved on, or you're using it
       if (prefs.farmSize === "tip") { if (prefs.tip) fold(); }
       else if (!isFolded() && prefs.view !== prefs.farmSize) setView(prefs.farmSize);
     }, 3000);
@@ -2081,7 +2580,7 @@
     armIdleFold();
   }
   function fold() {
-    if (!prefs.tip || prefs.folded) return;
+    if (!prefs.tip || prefs.folded || editing) return;
     closeStops(true);
     idleFolded = false;
     smartOpened = null;
@@ -2222,6 +2721,7 @@
 
   // ── tabs and buttons ─────────────────────────────────────────
   function selectTab(t) {
+    if (t !== "guide" && editing) endEdit();
     // the other tabs live in the full guide
     if (t !== "guide" && isCompact()) { prefs.view = "full"; savePrefs(); document.body.classList.remove("vcompact", "vcmap"); if (mapView) setTimeout(() => mapView.resize(), 60); }
     if (t !== tab) closeStops(true);
@@ -2472,6 +2972,7 @@
     lockBtn.setAttribute("aria-pressed", String(!!prefs.locked));
     lockBtn.title = prefs.locked ? "Locked · click to unlock (or Ctrl+Alt+L)" : "Lock Farm Guide against accidental clicks (Ctrl+Alt+L)";
     lockBtn.setAttribute("aria-label", prefs.locked ? "Unlock Farm Guide" : "Lock Farm Guide");
+    if (prefs.locked && editing) endEdit(); // locked, it takes no clicks: nothing to edit with
   }
   function lockedHint() {
     if (Date.now() - hintAt < 2500) return;

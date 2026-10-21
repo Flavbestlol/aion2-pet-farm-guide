@@ -28,6 +28,9 @@
         <button type="button" class="lockbtn" aria-pressed="false" aria-label="Lock Farm Guide" title="Lock Farm Guide against accidental clicks">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path class="shackle" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
         </button>
+        <button type="button" class="editbtn" hidden aria-label="Edit the layout" title="Edit the layout: move, resize or hide any part">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" /></svg>
+        </button>
         <button type="button" class="sizebtn" aria-label="Full guide" title="Full guide: the map, the tabs and everything">
           <svg class="grow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></svg>
           <svg class="shrink" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" /></svg>
@@ -57,7 +60,7 @@
         <div class="notice" hidden></div>
         <div class="stage">
           <div class="card">
-            <div class="focus">
+            <div class="focus" data-edit="focus" data-label="Monster">
               <div class="dial" title="Souls collected at this stop">
                 <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
                   <defs>
@@ -93,15 +96,21 @@
                 <div class="alike" hidden></div>
               </div>
             </div>
-            <div class="travel">
+            <div class="travel" data-edit="travel" data-label="Directions">
               <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 15-6-3.4L6 17z" /></svg>
               <div class="route-text"><div class="tp"></div><div class="walk"></div><div class="trnote" hidden></div></div>
             </div>
           </div>
           <div class="suggest" hidden></div>
-          <div class="queue" aria-label="Pets at this stop"></div>
+          <div class="qwrap" data-edit="queue" data-label="Monster list">
+            <div class="queue" aria-label="Pets at this stop"></div>
+            <button type="button" class="qstyle" aria-label="Show as bars" title="Show the monsters as bars">
+              <svg class="i-bars" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h12M4 12h16M4 18h9" /></svg>
+              <svg class="i-rings" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="12" r="3.5" /><circle cx="17.5" cy="12" r="3.5" /></svg>
+            </button>
+          </div>
         </div>
-        <div class="mapzone">
+        <div class="mapzone" data-edit="map" data-label="Map">
           <div class="mapwrap">
             <canvas class="tiles"></canvas>
             <canvas class="overlay"></canvas>
@@ -119,7 +128,7 @@
             <button type="button" class="mb-fold" title="Hide the map"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" /></svg><span>Map</span></button>
           </div>
         </div>
-        <div class="loot" title="What else the monsters in this circle drop, per kill. Hover to pause">
+        <div class="loot" data-edit="loot" data-label="Also drops" title="What else the monsters in this circle drop, per kill. Hover to pause">
           <span class="lbl">Also drops</span>
           <div class="ticker"><div class="track"></div></div>
         </div>
@@ -171,6 +180,12 @@
         </symbol>
       </defs>
     </svg>
+    <div class="editbar" hidden role="toolbar" aria-label="Edit the layout">
+      <div class="eb-t"><b>Edit layout</b><span>Drag a box to move it · scroll over it to resize · click it for its options</span></div>
+      <div class="eb-hidden"></div>
+      <div class="eb-btns"><button type="button" class="btn eb-reset">Reset all</button><button type="button" class="btn gold eb-done">Done</button></div>
+    </div>
+    <div class="editpop" hidden role="dialog"></div>
     <canvas id="fx" aria-hidden="true"></canvas>
     <div id="toasts" aria-live="polite"></div>
 
