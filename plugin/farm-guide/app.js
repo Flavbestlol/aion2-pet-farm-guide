@@ -1233,7 +1233,12 @@
     return out.sort((a, b) => (b.name === here) - (a.name === here));
   }
 
-  function onSoul({ pet, amount }, isLive, at) {
+  // One soul pickup (one kill) can feed several pets: 0D 90 is a list of (pet, amount). Events
+  // from before 1.23 (saved logs, bridge.json the overlay replays) are one { pet, amount }.
+  const soulsIn = (data) => (Array.isArray(data?.souls) ? data.souls : data && data.pet != null ? [{ pet: data.pet, amount: data.amount }] : []);
+  // kill: true for the first pet of a pickup only, so a kill that feeds two pets is still one
+  // kill for the streak and the idle/fold logic, and two pets' souls everywhere else
+  function onSoul({ pet, amount }, isLive, at, kill = true) {
     const pid = String(pet);
     amount = Number(amount) || 1;
     const m0 = place.dungeon ? null : getModel(); // inside a dungeon a soul says nothing about the stop
@@ -1242,12 +1247,12 @@
     else try { where = areaFor(pid, isLive); } catch (e) { console.warn(e); }
     const now = Number(at) || Date.now(); // when the meter read it (a replayed soul keeps its own time)
     if (isLive) {
-      bumpStreak(Date.now());
+      if (kill) bumpStreak(Date.now());
       if (place.dungeon) notePlaceSoul(pid);
       else noteWorldSoul(pid);
       // back to hunting after the guide folded itself: open it again (Settings: When hunting resumes)
-      if (idleFolded && isFolded() && prefs.tipResume !== "stay" && !place.dungeon) { idleFolded = false; unfold(); }
-      armIdleFold();
+      if (kill && idleFolded && isFolded() && prefs.tipResume !== "stay" && !place.dungeon) { idleFolded = false; unfold(); }
+      if (kill) armIdleFold();
     }
     log.push([now, Number(pid), amount, where.area, where.map]);
     if (isLive) setTimeout(renderCompanion, 0);
@@ -3274,7 +3279,7 @@
   }));
   a2.on("decoded:soul-gained", (data, meta) => queued(async () => {
     await keyForEvent(meta, false);
-    onSoul(data, isLive(meta), meta?.at);
+    soulsIn(data).forEach((soul, i) => onSoul(soul, isLive(meta), meta?.at, i === 0));
   }));
   a2.on("decoded:level-up", (data, meta) => queued(async () => {
     await keyForEvent(meta, false);
