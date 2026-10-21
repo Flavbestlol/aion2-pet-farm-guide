@@ -61,7 +61,11 @@
     },
     settings({ row, seg, toggle, h, prefs, savePrefs }, part) {
       if (part === "look") {
-      row("Size", "", seg("ovScale", [[0.85, "S"], [1, "M"], [1.15, "L"], [1.3, "XL"]], () => { applyLook(); layout(); }));
+      const sz = h("input");
+      sz.type = "range"; sz.min = "0.6"; sz.max = "1.5"; sz.step = "0.05"; sz.value = String(prefs.ovScale || 1);
+      row("Size", `${Math.round((prefs.ovScale || 1) * 100)}% · or hold Ctrl and scroll over the guide`, sz);
+      sz.addEventListener("input", () => { prefs.ovScale = Number(sz.value); applyLook(); layout(); const d = sz.closest(".row")?.querySelector("small"); if (d) d.textContent = `${Math.round(prefs.ovScale * 100)}% · or hold Ctrl and scroll over the guide`; });
+      sz.addEventListener("change", savePrefs);
       const bg = h("input");
       bg.type = "range"; bg.min = "0"; bg.max = "0.9"; bg.step = "0.05"; bg.value = String(prefs.ovBg ?? 0.66);
       bg.addEventListener("input", () => { prefs.ovBg = Number(bg.value); applyLook(); });
@@ -93,7 +97,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.15.0";
+  const VERSION = "1.16.0";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -354,6 +358,7 @@
     const side = prefs().ovSide || "auto";
     const right = side === "auto" ? ax > W / 2 : side === "right", bottom = ay > H / 2;
     tip.classList.toggle("flip", right);
+    document.body.classList.toggle("dock-right", right);
     // the layout faces the other way from the edge it's docked to: docked left, it reads from the
     // middle of the screen (dial and text toward the centre); docked right, the opposite
     document.body.classList.toggle("side-right", (prefs().ovFace || "middle") === "edge" ? right : !right);
@@ -388,12 +393,15 @@
     // the guide grows out of the tip and shrinks back into it
     app.style.setProperty("--tip-x", `${(ax - pl) / z}px`);
     app.style.setProperty("--tip-y", `${(ay - pt) / z}px`);
-    // messages sit at the bottom inside the guide
+    // messages sit at the bottom inside the guide; the compact guide is small, so they go just
+    // outside it instead (below, or above when there's no room below)
     if (toasts) {
-      toasts.style.left = `${pl + 10 * z}px`;
-      toasts.style.width = `${pw - 20 * z}px`;
+      const compact = onGuide && document.body.classList.contains("vcompact");
+      toasts.style.left = `${pl + (compact ? 0 : 10 * z)}px`;
+      toasts.style.width = `${Math.max(pw - (compact ? 0 : 20 * z), 260 * z)}px`;
       toasts.style.right = "auto";
-      toasts.style.bottom = `${H - (pt + bh) + 10 * z}px`;
+      if (compact && H - (pt + bh) > 150 * z) { toasts.style.bottom = "auto"; toasts.style.top = `${pt + bh + 6 * z}px`; toasts.classList.add("below"); }
+      else { toasts.style.top = "auto"; toasts.style.bottom = `${compact ? H - pt + 6 * z : H - (pt + bh) + 10 * z}px`; toasts.classList.remove("below"); }
     }
     sendHits();
   }
@@ -516,7 +524,7 @@
     else if (folded) add($(".tip"));
     else if (document.body.classList.contains("hud") && document.body.dataset.tab === "guide") {
       // no card: only the floating parts take the mouse; the gaps between them belong to the game
-      for (const sel of [".top", ".tabs", ".dial", ".info", ".travel", ".suggest", ".notice", ".ovnotice", ".mapwrap", ".mapbar", ".loot .ticker"]) add($(sel));
+      for (const sel of [".top", ".tabs", ".dial", ".info", ".travel", ".suggest", ".notice", ".ovnotice", ".mapwrap", ".mapbar", ".loot .ticker", ".cgrip", ".alike"]) add($(sel));
       if (window.FG_stopsOpen && window.FG_stopsOpen()) add($(".stoplist"));
       for (const q of document.querySelectorAll(".qcell")) add(q);
       for (const t of document.querySelectorAll("#toasts .toast")) add(t);
@@ -536,6 +544,19 @@
     invoke("set_hits", { rects: h, altOnly }).catch(() => {});
   }
   setInterval(sendHits, 150);
+
+  // ── Ctrl + scroll over the guide or the tip: bigger or smaller (60% to 150%) ──
+  let zoomSave = 0;
+  addEventListener("wheel", (e) => {
+    if (!e.ctrlKey || !e.target.closest || !e.target.closest("#app, .tip")) return;
+    e.preventDefault();
+    const p = prefs();
+    p.ovScale = Math.round(Math.max(0.6, Math.min(1.5, (Number(p.ovScale) || 1) + (e.deltaY < 0 ? 0.05 : -0.05))) * 100) / 100;
+    applyLook();
+    layout();
+    clearTimeout(zoomSave);
+    zoomSave = setTimeout(savePrefsNow, 400);
+  }, { passive: false, capture: true });
 
   // ── links (Ko-fi, credits): open in the browser, never inside the overlay ──
   document.addEventListener("click", (e) => {

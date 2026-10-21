@@ -28,6 +28,10 @@
         <button type="button" class="lockbtn" aria-pressed="false" aria-label="Lock Farm Guide" title="Lock Farm Guide against accidental clicks">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path class="shackle" d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
         </button>
+        <button type="button" class="sizebtn" aria-label="Full guide" title="Full guide: the map, the tabs and everything">
+          <svg class="grow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></svg>
+          <svg class="shrink" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" /></svg>
+        </button>
         <button type="button" class="foldbtn" hidden aria-label="Fold into the tip" title="Fold into the tip">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6 6 6-6M6 4l6 6 6-6" /></svg>
         </button>
@@ -75,6 +79,7 @@
                   <circle class="ticks" cx="50" cy="50" r="46" />
                   <circle class="fill" cx="50" cy="50" r="46" transform="rotate(-90 50 50)" />
                 </svg>
+                <div class="blaze" aria-hidden="true"><i></i><i></i></div>
                 <div class="mob"><img alt="" draggable="false" /><svg class="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></div>
                 <div class="badge"><img alt="" draggable="false" /></div>
                 <div class="pct">0%</div>
@@ -119,6 +124,7 @@
           <div class="ticker"><div class="track"></div></div>
         </div>
         <div class="empty-guide" hidden></div>
+        <div class="cgrip" title="Drag to make the compact guide wider or narrower" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M11 3v8H3M11 7v4H7" /></svg></div>
       </section>
 
       <section class="pane" data-pane="pets" hidden>
@@ -146,6 +152,7 @@
     <!-- tip mode: everything folds into this; a click opens the guide again -->
     <button type="button" class="tip" hidden aria-label="Open Farm Guide">
       <span class="tipicon">
+        <span class="blaze" aria-hidden="true"><i></i><i></i></span>
         <svg class="tipring" viewBox="0 0 44 44" aria-hidden="true"><circle class="t" cx="22" cy="22" r="19.5" /><circle class="f" cx="22" cy="22" r="19.5" /></svg>
         <img class="tipmobimg" alt="" draggable="false" />
         <img class="tippet" alt="" draggable="false" />

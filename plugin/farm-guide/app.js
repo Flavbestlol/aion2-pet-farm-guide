@@ -25,7 +25,7 @@
     search: $(".search"), filter: $(".chips.filter"), petlist: $(".petlist"), stats: $('[data-pane="stats"]'),
     settings: $(".settings"), ver: $(".credit .ver"), toasts: $("#toasts"),
     tip: $(".tip"), tipmob: $(".tipmob"), tipsub: $(".tipsub"), tipring: $(".tipring .f"), tippet: $(".tippet"), tipmobimg: $(".tipmobimg"), tipnav: $(".tipnav"), tipstreak: $(".tipstreak"),
-    foldbtn: $(".foldbtn"), maptitle: $(".maptitle"),
+    foldbtn: $(".foldbtn"), sizebtn: $(".sizebtn"), cgrip: $(".cgrip"), maptitle: $(".maptitle"),
     title: $(".top .title"), sl: $(".stoplist"), slSeg: $(".sl-seg"), slFind: $(".sl-find"), slDone: $(".sl-done"), slSum: $(".sl-sum"), slBody: $(".sl-body"),
     track: $(".loot .track"), ticker: $(".loot .ticker"), notice: $(".notice"), suggest: $(".suggest"), streak: $(".dial .streak"),
   };
@@ -41,6 +41,9 @@
     loot: true, freeAuto: true, freeAfter: 3, locked: false, smartOpen: true, theme: "classic", tip: false, tipPos: "bottom", tipAuto: 0, tipIdle: 3, folded: false,
     mapShape: null, mapSize: null, mapFold: false, mapLoop: true, mapIcons: true, tipResume: "open", sOpen: { you: true },
     dungeonFold: "fold", slShowDone: false, riftAlert: "on", abyssAlert: "on",
+    // sizes: the open guide is compact or full (folded is the tip); farmSize is what to go back to
+    // once you're farming, compactMap shows the map in compact, mapWhen: "always" | "way" (full only)
+    view: "compact", farmSize: "compact", compactMap: false, mapWhen: "always", cw: 0,
   };
   let prefs = { ...DEFAULTS };
   let character = null;
@@ -373,6 +376,8 @@
     flashTimer = setTimeout(() => els.t2.classList.remove("flashing"), 2800);
   }
 
+  // the map shows: in full (always, or only on the way there), in compact only if you asked for it
+  const mapOn = (m) => !!prefs.map && (isCompact() ? !!prefs.compactMap : prefs.mapWhen !== "way" || travelling(m));
   function renderGuide(opts = {}) {
     const m = getModel();
     const has = !!m;
@@ -380,7 +385,10 @@
     els.queue.hidden = !has;
     els.loot.hidden = !has || !prefs.loot || !m.loot.length;
     renderNotice();
-    els.mapzone.style.display = has && prefs.map ? "" : "none";
+    const showMap = has && mapOn(m);
+    if ((els.mapzone.style.display !== "none") !== showMap && mapView) setTimeout(() => mapView.resize(), 30);
+    els.mapzone.style.display = showMap ? "" : "none";
+    if (has) els.travel.classList.toggle("going", travelling(m));
     els.emptyGuide.hidden = has;
     if (!has) {
       const rest = pets.syncedAt ? offRoute() : [];
@@ -396,7 +404,7 @@
     renderStreak();
     renderQueue(m);
     if (prefs.loot) renderLoot(m);
-    if (mapView && prefs.map) {
+    if (mapView && showMap) {
       mapView.setStop({ key: m.stop.key, map: m.stop.map, x: m.stop.x, y: m.stop.y, r: m.stop.r, markers: m.markers, dots: m.dots,
         kib: m.tr ? { x: m.tr.x, y: m.tr.y, name: m.tr.name, tp: m.tr.rift ? 0 : m.tr.tp } : null, gate: m.tr && m.tr.wind ? m.tr.gate : null, loop: m.loop ? { ...m.loop, ...loopPos(m) } : null }, { mode: rstate.seen[m.stop.key] ? "farm" : "way" });
     }
@@ -627,7 +635,10 @@
       img.alt = "";
       img.src = portrait(row.pid);
       img.draggable = false;
-      r.append(img);
+      const mi = h("img", "qm");
+      mi.alt = "";
+      mi.draggable = false;
+      r.append(mi, img);
       el.append(r, h("span", "n"));
       el.style.setProperty("--genus", colorOf(row.pid));
       el.addEventListener("animationend", (e) => { if (e.animationName === "pop-in") el.classList.remove("enter"); if (e.animationName === "pulse") el.classList.remove("hit"); });
@@ -636,7 +647,10 @@
     const total = E.soulsTotal(prefs.goal);
     el.querySelector(".f").style.strokeDashoffset = String(QRING * (row.left / total));
     el.querySelector(".n").textContent = String(row.left);
-    el.title = `${petName(row.pid)} · ${row.left} left${row.bonus ? " · bonus: also drops here, its own stop is elsewhere" : ""}`;
+    const qm = el.querySelector(".qm"), art = mobArt(row.top);
+    if (qm.getAttribute("src") !== art) { if (art) qm.src = art; else qm.removeAttribute("src"); }
+    const mob = D.mobs[row.top];
+    el.title = `${mob ? `${mob.n} → ` : ""}${petName(row.pid)} · ${row.left} left${row.bonus ? " · bonus: also drops here, its own stop is elsewhere" : ""}`;
     el.classList.toggle("bonus", row.bonus);
     return el;
   }
@@ -710,27 +724,70 @@
   // ── kill streak ──────────────────────────────────────────────
   const STREAK_GAP = 45000;
   let streak = { n: 0, at: 0 };
+  const FIRE_NAME = ["", "Warming up", "On fire", "Blazing", "Inferno"];
+  let streakBest = 0, streakEndTimer = 0;
   function bumpStreak(at) {
     const tierBefore = Date.now() - streak.at > STREAK_GAP ? 0 : Sound.tierOf(streak.n);
     if (at - streak.at > STREAK_GAP) streak.n = 0;
     streak.n++;
     streak.at = at;
+    streakBest = Math.max(streakBest, streak.n);
     const tier = Sound.tierOf(streak.n);
+    // the fuse under the counter starts again: 45 s to the next soul
+    els.streak.style.setProperty("--gap", `${STREAK_GAP / 1000}s`);
+    els.streak.classList.remove("burning"); void els.streak.offsetWidth; els.streak.classList.add("burning");
+    clearTimeout(streakEndTimer);
+    streakEndTimer = setTimeout(streakEnded, STREAK_GAP + 250);
+    if (streak.n >= 5) setTimeout(() => embers(tier), 380);
     if (tier > tierBefore) {
       setTimeout(() => {
         Sound.streakUp(tier);
-        flash(`🔥 Kill streak ${streak.n}!`);
+        flash(`🔥 ${FIRE_NAME[tier]} · ${streak.n} in a row`);
+        fireCall(tier);
         els.streak.classList.remove("up"); void els.streak.offsetWidth; els.streak.classList.add("up");
       }, 260);
     }
   }
+  // where the fire is: the dial when it's on screen, else the tip
+  function fireAt() {
+    const el = isFolded() ? els.tip.querySelector(".tipicon") : visible(els.dial) ? els.dial : null;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+  }
+  // embers off the dial with every soul while the streak burns; more, and hotter, as it climbs
+  function embers(tier) {
+    const at = fireAt();
+    if (at && FX.flames) FX.flames(at.x, at.y, at.r, tier);
+  }
+  // a new tier: its name, big, over the dial (or the tip)
+  function fireCall(tier) {
+    const at = fireAt();
+    if (!at || !prefs.effects) return;
+    const el = h("div", `firecall${tier >= 4 ? " t4" : ""}`, `${FIRE_NAME[tier]}!`);
+    el.style.left = `${at.x}px`;
+    el.style.top = `${at.y - at.r - 6}px`;
+    document.body.append(el);
+    setTimeout(() => el.remove(), 1600);
+    if (at && FX.shockwave) FX.shockwave(at.x, at.y, tier >= 4 ? "#a9cbff" : "#ff9a3c", { rings: 2, radius: at.r + 26 });
+  }
+  // the fire goes out: say how far it went (from 10 in a row)
+  function streakEnded() {
+    const n = streak.n;
+    renderStreak();
+    if (streakNow() || n < 10) return;
+    const msg = `🔥 Streak over · ${n} in a row${n >= streakBest ? " · your best today" : ""}`;
+    if (isFolded()) tipFlash(msg, 3600); else flash(msg);
+  }
   const streakNow = () => (Date.now() - streak.at <= STREAK_GAP ? streak.n : 0);
   function renderStreak() {
     if (prefs.tip) renderTip();
-    const n = streakNow();
+    const n = streakNow(), tier = n >= 5 ? Sound.tierOf(n) : 0;
     els.streak.hidden = n < 5;
     els.streak.textContent = `🔥 ${n}`;
-    els.streak.dataset.tier = String(Sound.tierOf(n));
+    els.streak.dataset.tier = String(tier);
+    els.dial.dataset.fire = String(prefs.effects ? tier : 0);
+    els.tip.dataset.fire = String(prefs.effects ? tier : 0);
   }
   setInterval(() => { if (!els.streak.hidden && streakNow() < 5) renderStreak(); }, 5000);
 
@@ -1141,9 +1198,10 @@
     if (after.level > before.level) levelLog.push([now, Number(pid), after.level]);
     if (where.here && m0) {
       // the first soul at a stop the guide opened by itself for the way there: fold back, you've arrived
-      if (isLive && smartOpened && smartOpened === m0.stop.key && prefs.tip && !prefs.folded) {
+      if (isLive && ((smartOpened && smartOpened === m0.stop.key) || (autoFull && autoFull === m0.stop.key)) && !isFolded()) {
         smartOpened = null;
-        setTimeout(() => { if (prefs.tip && !prefs.folded) fold(); }, 1600);
+        autoFull = null;
+        backToFarmSize(m0.stop.key);
       }
       rstate.seen[m0.stop.key] = true;
       if (isLive) noteLoopSoul(m0, String(pid));
@@ -1198,10 +1256,11 @@
       return afterChange(m0, true);
     }
     // first soul here: the map glides from the way there into the farm circle
-    if (mapView && prefs.map && mapView.mode === "way") mapView.setMode("farm", 1000);
-    if (mapView && prefs.map) mapView.pulse();
+    if (mapView && mapOn(m0) && mapView.mode === "way") mapView.setMode("farm", 1000);
+    if (mapView && mapOn(m0)) mapView.pulse();
     const c = m0.contents[pid];
-    const from = mapView && prefs.map && mapView.visible() && c ? mapView.toScreen(c.x, c.y) : center(els.travel);
+    const tc = center(target);
+    const from = mapView && mapOn(m0) && mapView.visible() && c ? mapView.toScreen(c.x, c.y) : visible(els.travel) ? center(els.travel) : { x: tc.x + 44, y: tc.y - 56 };
     FX.orb(from, () => center(target), color, () => land(pid, amount, before, after, target, isFocus, m0));
   }
   function land(pid, amount, before, after, target, isFocus, m0) {
@@ -1293,11 +1352,12 @@
         setStop(n);
         render({ swap: false });
         // a new stop: open the guide on the way there (map + directions); it folds again at the first soul
-        if (prefs.tip && prefs.smartOpen && prefs.folded && !place.dungeon) {
+        if (prefs.smartOpen && !place.dungeon && ((prefs.tip && prefs.folded) || isCompact())) {
           const k = currentStop()?.key;
-          if (k) { rstate.seen[k] = false; save(); smartOpened = k; } // you are on the way there now
+          if (k) { rstate.seen[k] = false; save(); } // you are on the way there now
           if (tab !== "guide") selectTab("guide");
-          unfold();
+          if (isFolded()) { smartOpened = k; prefs.view = "full"; unfold(true); }
+          else { autoFull = k; setView("full"); }
         }
         els.card.classList.add("in");
         setTimeout(() => els.card.classList.remove("in"), 600);
@@ -1707,17 +1767,22 @@
     row("Free route", "Farming a pet that isn't on the stop? The guide picks it up where you are", toggle("freeAuto"));
     row("Switch after", "Souls in a row for that pet", seg("freeAfter", [[2, "2"], [3, "3"], [5, "5"]]));
 
-    // ── tip & folding ──
+    // ── size & folding ──
     {
       const idle = prefs.tipIdle ? `${prefs.tipIdle} min` : "off";
-      group("tip", "Tip & folding", prefs.tip ? `fold after ${idle}${prefs.tipIdle ? `, ${prefs.tipResume === "stay" ? "stays folded" : "reopens"} when you hunt` : ""}` : "Tip mode off");
+      const SIZE = { tip: "tip", compact: "compact", full: "full" };
+      group("tip", "Size & folding", `farm in ${SIZE[prefs.farmSize] || "compact"}${prefs.tip ? ` · fold after ${idle}` : ""}`);
+      const sizes = [["compact", "Compact"], ["full", "Full"]];
+      if (prefs.tip) sizes.unshift(["tip", "Tip"]);
+      row("While farming", "The size the guide goes back to once you're farming. The button by the padlock switches compact and full any time", seg("farmSize", sizes));
+      row("Open on a new stop", "On the way to a new stop: the full guide with the map. 3 s after your first soul there: back to your farming size", toggle("smartOpen"));
+      row("Map in compact", "Show the map in the compact guide too", toggle("compactMap", () => { applyView(); render(); }));
       if (!HOST) row("Tip mode", "Fold the guide into a small tip; click the tip to open it. Shrink the window by its edge to fit", toggle("tip", () => { prefs.folded = false; applyTip(); render(); }));
       if (prefs.tip) {
         if (!HOST) row("Tip position", "", seg("tipPos", [["top", "Top"], ["bottom", "Bottom"], ["left", "Left"], ["right", "Right"], ["center", "Middle"]], applyTip));
         row("Fold when hunting stops", "No pet souls for this long", seg("tipIdle", [[0, "Off"], [1, "1 min"], [3, "3 min"], [5, "5 min"]], applyTip));
         if (prefs.tipIdle) row("When hunting resumes", "After it folded by itself", seg("tipResume", [["open", "Open again"], ["stay", "Stay folded"]]));
         row("Fold when mouse leaves", HOST ? "Mouse away from the guide for this long" : "No mouse in this window for this long", seg("tipAuto", [[0, "Off"], [20, "20 s"], [60, "1 min"]], applyTip));
-        row("Open on a new stop", "Shows the way there when a stop is done; folds back at your first soul there", toggle("smartOpen"));
         row("In dungeons", "Field souls don't drop inside: fold away, and open again when you leave", seg("dungeonFold", [["fold", "Fold"], ["off", "Leave it"]]));
       }
     }
@@ -1725,6 +1790,7 @@
     // ── map ──
     group("map", "Map", prefs.map ? `${prefs.mapLoop === false ? "loop off" : "farming loop on"} · loot strip ${onOff(prefs.loot)}` : "hidden");
     row("Map", "Shape, size, loop and icons: the small buttons under the map", toggle("map", () => render()));
+    if (prefs.map) row("Show the map", "In the full guide. On the way: only until you start farming at the stop", seg("mapWhen", [["always", "Always"], ["way", "On the way"]], () => render()));
     row("Also drops", "The scrolling loot strip under the map", toggle("loot", () => { lootKey = ""; render(); }));
 
     // ── look ──
@@ -1881,9 +1947,37 @@
     els.mapgrip.addEventListener("pointercancel", up);
   });
   els.mapgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.mapSize = null; savePrefs(); applyMapFrame(); });
+  // the compact guide's width (in the overlay): drag its grip; double-click for the default
+  els.cgrip.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || prefs.locked) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const app = $("#app"), flip = document.body.classList.contains("dock-right") ? -1 : 1; // docked right, it grows to the left
+    const z = app.getBoundingClientRect().width / (app.offsetWidth || 1) || 1;
+    const st = { x: e.clientX, w: app.offsetWidth };
+    els.cgrip.setPointerCapture(e.pointerId);
+    document.body.classList.add("resizing-c");
+    const move = (ev) => {
+      prefs.cw = Math.round(Math.max(190, Math.min(460, st.w + (flip * (ev.clientX - st.x)) / z)));
+      document.documentElement.style.setProperty("--cw", `${prefs.cw}px`);
+      if (HOST && HOST.onFold) HOST.onFold(isFolded());
+    };
+    const up = () => {
+      document.body.classList.remove("resizing-c");
+      els.cgrip.removeEventListener("pointermove", move);
+      els.cgrip.removeEventListener("pointerup", up);
+      els.cgrip.removeEventListener("pointercancel", up);
+      savePrefs();
+    };
+    els.cgrip.addEventListener("pointermove", move);
+    els.cgrip.addEventListener("pointerup", up);
+    els.cgrip.addEventListener("pointercancel", up);
+  });
+  els.cgrip.addEventListener("dblclick", (e) => { e.stopPropagation(); prefs.cw = 0; savePrefs(); applyView(); });
   function applyPrefs() {
     applyLock();
     applyTip();
+    applyView();
     if (prefs.theme === "glass") prefs.theme = "ingame";
     if (!HOST && (prefs.theme === "apple" || prefs.theme === "hud")) prefs.theme = "ingame";
     document.body.classList.toggle("ingame", prefs.theme === "ingame");
@@ -1895,6 +1989,44 @@
     Sound.enabled = !!prefs.sounds;
     Sound.volume = prefs.volume;
     document.body.classList.toggle("nofx", !prefs.effects);
+  }
+
+  // ── sizes: the tip, compact, full ──
+  // Compact is the farming view; full has the tabs and the map. The size button switches between
+  // them (and that becomes the size you farm in). On a new stop the guide shows the full guide with
+  // the way there, and goes back to your farming size 3 s after your first soul there.
+  const isCompact = () => prefs.view === "compact";
+  function applyView() {
+    document.body.classList.toggle("vcompact", isCompact());
+    document.body.classList.toggle("vcmap", isCompact() && !!prefs.compactMap);
+    els.sizebtn.title = isCompact() ? "Full guide: the map, the tabs and everything" : "Compact: just what you're farming";
+    els.sizebtn.setAttribute("aria-label", isCompact() ? "Full guide" : "Compact guide");
+    document.documentElement.style.setProperty("--cw", prefs.cw ? `${prefs.cw}px` : "");
+    if (isCompact() && tab !== "guide") selectTab("guide");
+    if (mapView) setTimeout(() => mapView.resize(), 60);
+    if (HOST && HOST.onFold) HOST.onFold(isFolded());
+  }
+  // manual: you picked it, so it's also the size you farm in from now on
+  function setView(v, manual) {
+    if (manual && v !== "tip") prefs.farmSize = v;
+    if (v === "tip") { savePrefs(); return fold(); }
+    const was = prefs.view;
+    prefs.view = v;
+    savePrefs();
+    if (isFolded()) return unfold(true);
+    if (was === v) return;
+    applyView();
+    render();
+  }
+  els.sizebtn.addEventListener("click", () => { autoFull = null; setView(isCompact() ? "full" : "compact", true); });
+  let autoFull = null; // the stop key the guide went full for by itself (it goes back to your farming size there)
+  // back to the size you farm in (a few seconds after your first soul at a stop it opened itself for)
+  function backToFarmSize(key) {
+    setTimeout(() => {
+      if (currentStop()?.key !== key || Date.now() - lastUse < 2500) return; // you moved on, or you're using it
+      if (prefs.farmSize === "tip") { if (prefs.tip) fold(); }
+      else if (!isFolded() && prefs.view !== prefs.farmSize) setView(prefs.farmSize);
+    }, 3000);
   }
 
   // ── tip mode: the guide folds into a small tip; a click opens it ──
@@ -1928,13 +2060,20 @@
     els.tip.classList.remove("peek"); void els.tip.offsetWidth; els.tip.classList.add("peek");
     Sound.close();
   }
-  function unfold() {
+  // opens to the size for now: the full guide on the way to a stop, else the size you farm in
+  function unfold(keepView) {
     if (!prefs.folded) return;
+    if (!keepView) {
+      const m = getModel();
+      prefs.view = (prefs.smartOpen && travelling(m)) || prefs.farmSize === "full" ? "full" : "compact";
+      if (prefs.view === "full" && travelling(m)) autoFull = m.stop.key;
+    }
     idleFolded = false;
     dungeonFolded = false; // opened (by you, or on the way out): leaving doesn't open it again
     prefs.folded = false;
     savePrefs();
     applyTip();
+    applyView();
     if (tab !== "guide") selectTab("guide");
     else render();
     if (mapView) setTimeout(() => mapView.resize(), 50);
@@ -2025,6 +2164,7 @@
     const n = streakNow();
     els.tipstreak.hidden = n < 5;
     els.tipstreak.textContent = `🔥${n}`;
+    els.tip.dataset.fire = String(prefs.effects && n >= 5 ? Sound.tierOf(n) : 0);
     els.tip.title = going ? `On the way to ${m.zone}: ${m.tr.rift ? "from your Rift landing" : "teleport"}, then follow the arrow${m.tr.wind ? " to the Windstream" : ""}. Click to open the guide with the map` : f ? `${D.mobs[f.top].n}: ${f.left} souls left for ${petName(f.pid)}. Click to open the guide` : "Click to open the guide";
   }
   // a soul while folded: the tip takes the hit
@@ -2050,6 +2190,8 @@
 
   // ── tabs and buttons ─────────────────────────────────────────
   function selectTab(t) {
+    // the other tabs live in the full guide
+    if (t !== "guide" && isCompact()) { prefs.view = "full"; savePrefs(); document.body.classList.remove("vcompact", "vcmap"); if (mapView) setTimeout(() => mapView.resize(), 60); }
     if (t !== tab) closeStops(true);
     tab = t;
     document.body.dataset.tab = t;

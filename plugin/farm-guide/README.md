@@ -11,6 +11,7 @@ Tells you where to farm every pet's souls, in what order, and which areas pay be
 - **Settings:** faction (auto from the server number), goal level, route order and genus priority, Rift trips,
   the low-level monster penalty, next stop by itself, map, effects, sounds.
 - **Abyss route** and **Rift route** (separate from the main route), and a **stop list** (click the stop name).
+- **Compact view** (the button by the padlock): the monsters, the % ring and souls left, without the map; it reflows to the window's width.
 
 ## Install (developer mode)
 

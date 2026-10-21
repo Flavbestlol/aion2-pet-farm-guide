@@ -51,6 +51,9 @@ Two parts that work together:
 - **Click it** and the guide grows out of it. It folds back by itself when you stop hunting, and opens again when you start.
 - **Drag it anywhere.** Near a screen edge it snaps, and the whole layout mirrors to face the middle of the screen.
 - **Lock it** (<kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd> or the padlock) and every click goes through to the game.
+- **Three sizes.** The tip; **compact**, the farming view (the monsters to kill with their pictures, the % ring, souls left, no map); and the **full** guide with the map and tabs. The button by the padlock switches between compact and full.
+- **It sizes itself.** On the way to a new stop it shows the full guide with the way there, then goes back to compact 3 seconds after your first soul. Drag the compact guide's corner to make it wider or narrower (it rearranges itself to fit), or hold <kbd>Ctrl</kbd> and scroll over it to resize the whole thing.
+- **Kill streaks catch fire.** Five souls in a row and the dial starts to smoulder; at 10 it burns, at 20 it blazes, at 40 it turns blue. A fuse under the counter shows how long you have to keep it going.
 
 ### Your whole route, one click away
 

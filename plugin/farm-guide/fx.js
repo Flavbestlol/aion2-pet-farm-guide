@@ -174,6 +174,41 @@
     }
   };
 
+  // Fire off a ring (a kill streak): embers rise from around it, drift and flicker out. Hotter
+  // tiers send more, bigger and faster; the top tier burns blue-white.
+  FX.flames = function (x, y, r, tier = 1) {
+    if (!on()) return;
+    const hot = tier >= 4;
+    const cols = hot ? ["#cfe2ff", "#8fb8ff", "#ffffff", "#6f8dff"] : ["#ffb347", "#ff7a1a", "#ffd88a", "#ff5a1f"];
+    const n = [0, 8, 14, 22, 30][Math.min(4, tier)] || 8;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5; // mostly from the top half
+      let px = x + Math.cos(a) * r * (0.85 + Math.random() * 0.2), py = y + Math.sin(a) * r * (0.85 + Math.random() * 0.2);
+      let vx = (Math.random() - 0.5) * 26, vy = -(40 + Math.random() * 60 + tier * 14);
+      const life = 600 + Math.random() * 500 + tier * 80, size = 1.4 + Math.random() * (1.4 + tier * 0.5), col = cols[i % cols.length];
+      let t = -Math.random() * 120;
+      add({
+        update(dt) {
+          t += dt;
+          if (t < 0) return true;
+          px += (vx * dt) / 1000 + Math.sin((t + i * 40) / 90) * 0.35;
+          py += (vy * dt) / 1000;
+          vy *= 0.985;
+          return t < life;
+        },
+        draw(c) {
+          if (t < 0) return;
+          const k = t / life, fl = 0.75 + 0.25 * Math.sin(t / 30 + i);
+          c.globalCompositeOperation = "lighter";
+          c.fillStyle = rgba(col, (1 - k) * fl);
+          c.beginPath();
+          c.ellipse(px, py, size * (1 - k * 0.6), size * (1.6 - k), 0, 0, Math.PI * 2);
+          c.fill();
+        },
+      });
+    }
+  };
+
   // Expanding rings. A staggered ring waits for its start (no negative radius).
   FX.shockwave = function (x, y, color, opts = {}) {
     if (!on()) return;

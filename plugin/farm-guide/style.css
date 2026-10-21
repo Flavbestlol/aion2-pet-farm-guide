@@ -60,7 +60,7 @@ body.locked .suggest .sb { opacity: 0.4; }
 .top {
   flex: none;
   display: grid;
-  grid-template-columns: 26px 1fr 26px auto auto;
+  grid-template-columns: 26px 1fr 26px auto auto auto;
   align-items: center;
   gap: 6px;
   padding: 8px 8px 6px;
@@ -696,3 +696,129 @@ body.abyssmode .t1 .chev { stroke: var(--abyss); }
 .kofi svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .kofi svg .heart { fill: #ff6f8e; stroke: none; }
 .kofi:hover svg .heart { animation: pulse 0.6s ease-in-out; transform-origin: 10.5px 12px; }
+
+/* ── sizes: tip · compact · full ──────────────────────
+   Compact is the farming view: the monster, the % ring, souls left, the bar, and every monster at
+   the stop. No tabs, no map (unless you want it), no loot strip. It reflows by its own width
+   (container queries), so a narrow compact guide drops the small print first, never the numbers. */
+.sizebtn { width: 20px; height: 26px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: var(--dim); }
+.sizebtn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; grid-area: 1 / 1; transition: opacity 0.2s, transform 0.3s cubic-bezier(.2,.9,.3,1.3); }
+.sizebtn:hover { color: var(--ink); }
+.sizebtn .shrink, body.vcompact .sizebtn .grow { opacity: 0; transform: scale(0.6); }
+body.vcompact .sizebtn .shrink { opacity: 1; transform: none; }
+body.folded .sizebtn { display: none; }
+body.ingame .sizebtn { color: rgba(255, 255, 255, 0.55); }
+body.locked #app .sizebtn, body.locked #app .sizebtn * { pointer-events: auto !important; }
+
+#app { container: guide / inline-size; }
+body.vcompact .tabs, body.vcompact .loot, body.vcompact .kills, body.vcompact .mapzone { display: none !important; }
+body.vcompact.vcmap .mapzone { display: flex !important; }
+body.vcompact .card .travel:not(.going) { display: none; }
+body.vcompact .stage { padding: 6px 8px 0; }
+body.vcompact .focus { grid-template-columns: 78px 1fr; gap: 10px; }
+body.vcompact .dial { width: 78px; height: 78px; }
+body.vcompact .dial .mob { inset: 7px; }
+body.vcompact .dial .badge { width: 28px; height: 28px; right: -5px; bottom: 0; }
+body.vcompact .dial .pct { bottom: -8px; }
+body.vcompact .kill .mobname { font-size: 14px; }
+body.vcompact .card .travel { margin-top: 8px; }
+body.vcompact .queue { min-height: 0; padding: 8px 0 4px; gap: 5px; }
+body.vcompact .alike { font-size: 11px; }
+/* in compact, each queue cell shows the monster to kill (its pet as a small badge) */
+.qcell .qm { display: none; }
+body.vcompact .qcell, body.vcompact .qcell .qr { width: 44px; }
+body.vcompact .qcell .qr { height: 44px; }
+body.vcompact .qcell .qm { display: block; position: absolute; inset: 4px; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #1b2030; }
+body.vcompact .qcell .qr > img:not(.qm) { inset: auto -3px -3px auto; width: 18px; height: 18px; border: 1.5px solid var(--genus); z-index: 1; }
+body.vcompact .qcell .n { font-size: 11.5px; color: var(--ink-2); }
+body.vcompact .qcell.now .n { color: var(--gold-hi); }
+/* narrower: the small print goes first, the numbers stay */
+@container guide (max-width: 270px) {
+  body.vcompact .t2 { display: none; }
+  body.vcompact .focus { grid-template-columns: 62px 1fr; gap: 8px; }
+  body.vcompact .dial { width: 62px; height: 62px; }
+  body.vcompact .dial .mob { inset: 6px; }
+  body.vcompact .dial .badge { width: 22px; height: 22px; }
+  body.vcompact .dial .pct { font-size: 10px; line-height: 13px; padding: 0 4px; }
+  body.vcompact .kill .verb, body.vcompact .kill .per, body.vcompact .lvline .pts, body.vcompact .alike { display: none; }
+  body.vcompact .kill .mobname { font-size: 13px; }
+  body.vcompact .qcell, body.vcompact .qcell .qr { width: 38px; height: 38px; }
+  body.vcompact .qcell { height: auto; }
+  body.vcompact .qcell .qm { width: 30px; height: 30px; }
+  body.vcompact .nav { width: 22px; height: 22px; }
+  body.vcompact .top { gap: 3px; padding-left: 4px; padding-right: 4px; }
+  body.vcompact .t1 { font-size: 13px; }
+  body.vcompact .lockbtn, body.vcompact .sizebtn, body.vcompact .foldbtn { width: 16px; }
+}
+@container guide (max-width: 220px) {
+  body.vcompact .t1 .zone, body.vcompact .lvline { display: none; }
+  body.vcompact .petline .petname { font-size: 12px; }
+  body.vcompact .card .travel .walk { display: none; }
+}
+@container guide (min-width: 360px) {
+  body.vcompact .focus { grid-template-columns: 92px 1fr; }
+  body.vcompact .dial { width: 92px; height: 92px; }
+  body.vcompact .dial .mob { inset: 8px; }
+  body.vcompact .dial .badge { width: 32px; height: 32px; }
+}
+/* the grip that makes compact wider or narrower (in the overlay) */
+.cgrip { display: none; }
+body.ov.vcompact:not(.folded)[data-tab="guide"] .cgrip {
+  display: grid; place-items: center; position: absolute; right: 2px; bottom: 2px; width: 18px; height: 18px; cursor: ew-resize;
+  border-radius: 6px; background: rgba(6, 8, 12, 0.6); border: 1px solid rgba(242, 195, 91, 0.35); opacity: 0.55; transition: opacity 0.2s; z-index: 3;
+}
+body.ov.vcompact .cgrip:hover, body.ov.resizing-c .cgrip { opacity: 1; }
+.cgrip svg { width: 10px; height: 10px; fill: none; stroke: var(--gold); stroke-width: 1.6; stroke-linecap: round; }
+body.dock-right .cgrip { right: auto; left: 2px; transform: scaleX(-1); }
+.pane[data-pane="guide"] { position: relative; }
+
+/* ── the kill streak: it catches fire ─────────────────
+   From 5 souls in a row (each within 45 s of the last) the dial smoulders; at 10 it burns, at 20 it
+   blazes, at 40 it turns into blue-white fire. A thin fuse under the counter shows the time left
+   to keep it going. */
+.blaze { position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 0; }
+.blaze i {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(255, 120, 30, 0), rgba(255, 150, 40, 0.85), rgba(255, 90, 20, 0), rgba(255, 200, 70, 0.8), rgba(255, 110, 30, 0), rgba(255, 170, 50, 0.9), rgba(255, 120, 30, 0));
+  -webkit-mask: radial-gradient(circle, transparent 54%, #000 62%, #000 66%, transparent 74%); mask: radial-gradient(circle, transparent 54%, #000 62%, #000 66%, transparent 74%);
+  filter: blur(2px); animation: blaze-spin 2.6s linear infinite, blaze-flicker 0.42s ease-in-out infinite alternate;
+}
+.blaze i + i { animation-duration: 3.7s, 0.31s; animation-direction: reverse, alternate; transform: scale(1.06); opacity: 0.7; }
+@keyframes blaze-spin { to { rotate: 360deg; } }
+@keyframes blaze-flicker { from { scale: 0.98; filter: blur(2px) brightness(0.9); } to { scale: 1.04; filter: blur(2.5px) brightness(1.25); } }
+.dial[data-fire="1"] .blaze { opacity: 0.45; }
+.dial[data-fire="2"] .blaze { opacity: 0.8; }
+.dial[data-fire="3"] .blaze { opacity: 1; inset: -13px; }
+.dial[data-fire="4"] .blaze { opacity: 1; inset: -15px; }
+.dial[data-fire="3"] .blaze i { animation-duration: 1.7s, 0.24s; }
+.dial[data-fire="4"] .blaze i { animation-duration: 1.2s, 0.18s; background: conic-gradient(from 0deg, rgba(120, 180, 255, 0), rgba(160, 210, 255, 0.95), rgba(90, 120, 255, 0), rgba(230, 240, 255, 0.9), rgba(130, 110, 255, 0), rgba(170, 220, 255, 0.95), rgba(120, 180, 255, 0)); }
+.dial[data-fire="3"] .ring .fill, .dial[data-fire="4"] .ring .fill { stroke: #ffb347; filter: drop-shadow(0 0 6px rgba(255, 140, 40, 0.9)); }
+.dial[data-fire="4"] .ring .fill { stroke: #bcd8ff; filter: drop-shadow(0 0 7px rgba(140, 190, 255, 0.95)); }
+.dial .streak { z-index: 2; overflow: hidden; }
+.dial .streak::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: currentColor; opacity: 0.85; transform-origin: left; transform: scaleX(var(--fuse, 0)); }
+.dial .streak.burning::after { animation: fuse var(--gap, 45s) linear forwards; }
+@keyframes fuse { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.dial .streak[data-tier="2"] { color: #ffe0a0; border-color: rgba(255, 150, 50, 0.9); box-shadow: 0 0 10px rgba(255, 130, 30, 0.7); }
+.dial .streak[data-tier="3"] { color: #fff3d6; background: linear-gradient(180deg, #7a3608, #3d1a05); border-color: #ffb347; box-shadow: 0 0 14px rgba(255, 140, 40, 0.95); }
+.dial .streak[data-tier="4"] { color: #eef5ff; background: linear-gradient(180deg, #1d3a7a, #0d1a3d); border-color: #a9cbff; box-shadow: 0 0 16px rgba(140, 190, 255, 0.95); }
+.dial .streak.up { animation: streak-pop 0.55s cubic-bezier(.2,.9,.3,1.6); }
+@keyframes streak-pop { 0% { transform: scale(1); } 35% { transform: scale(1.35) rotate(-6deg); } 100% { transform: scale(1); } }
+/* the tip burns too */
+.tipicon .blaze { inset: -6px; }
+.tip[data-fire="1"] .tipicon .blaze { opacity: 0.5; }
+.tip[data-fire="2"] .tipicon .blaze, .tip[data-fire="3"] .tipicon .blaze { opacity: 1; }
+.tip[data-fire="4"] .tipicon .blaze { opacity: 1; }
+.tip[data-fire="4"] .tipicon .blaze i { background: conic-gradient(from 0deg, rgba(120, 180, 255, 0), rgba(160, 210, 255, 0.95), rgba(90, 120, 255, 0), rgba(230, 240, 255, 0.9), rgba(130, 110, 255, 0), rgba(170, 220, 255, 0.95), rgba(120, 180, 255, 0)); }
+.tip[data-fire="3"] .tipstreak, .tip[data-fire="4"] .tipstreak { animation: blaze-flicker 0.3s ease-in-out infinite alternate; }
+.tip[data-fire="4"] .tipstreak { color: #cfe2ff; }
+/* a new tier: the name of it, big, for a moment */
+.firecall {
+  position: fixed; z-index: 40; pointer-events: none; transform: translate(-50%, -50%);
+  font: 900 20px/1 var(--num); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  color: #fff1cc; text-shadow: 0 0 8px #ff8a1e, 0 0 18px #ff5a00, 0 2px 2px #000;
+  animation: firecall 1.5s cubic-bezier(.2,.9,.3,1.2) forwards;
+}
+.firecall.t4 { color: #eef5ff; text-shadow: 0 0 8px #7fb2ff, 0 0 18px #4d7dff, 0 2px 2px #000; }
+@keyframes firecall { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); } 18% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 70% { opacity: 1; transform: translate(-50%, -80%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -110%) scale(0.95); } }
+body.nofx .blaze, body.nofx .firecall { display: none; }
+@media (prefers-reduced-motion: reduce) { .blaze i, .firecall { animation: none !important; } }
