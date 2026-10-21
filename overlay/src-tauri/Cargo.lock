@@ -812,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "farm-guide-overlay"
-version = "1.18.0"
+version = "1.19.0"
 dependencies = [
  "ed25519-dalek",
  "serde",

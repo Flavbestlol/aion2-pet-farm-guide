@@ -54,7 +54,8 @@ Two parts that work together:
 - **Three sizes.** The tip; **compact**, the farming view (the monsters to kill with their pictures, the % ring, souls left, no map); and the **full** guide with the map and tabs. The button by the padlock switches between compact and full, and the header stays where it is: only the bottom moves. Low on the screen, the full guide fits itself into the room under the header (the map gets smaller).
 - **It sizes itself.** On the way to a new stop it shows the full guide with the way there, then goes back to compact 3 seconds after your first soul. Drag the guide's corner to make it wider or narrower: compact and full share one width, so a switch only changes the height (it rearranges itself to fit), or hold <kbd>Ctrl</kbd> and scroll over it to resize the whole thing.
 - **Rings or bars.** The small button at the end of the monster list switches between round portraits and bars that fill up as you farm, each with its % and the souls left.
-- **Make it yours.** Click the pencil by the padlock to edit the layout: drag any part (the monster, the directions, the monster list, the map, the loot strip) anywhere on screen, scroll over it to make it bigger or smaller, or click it for its options (the map's shape, loop and icons; the monster picture's size; rings or bars). Hide what you don't need and bring it back from the bar at the top. Compact and full each keep their own layout, and the parts you moved stay where you put them, even when you drag the guide away.
+- **Make it yours.** Click the pencil by the padlock to edit the layout: drag any part (the monster, the directions, the monster list, the map, the loot strip) anywhere on screen, scroll over it to make it bigger or smaller, or click it for its options (the map's shape, loop and icons; the monster picture's size; rings or bars). Hide what you don't need and bring it back from the bar at the top. Don't want to drag? **Presets** set up a whole layout in one click (Standard, Minimal, Map beside, Big picture), built from where your guide is and how big your screen is. Each part has its own options too: directions as the full route or just the teleport, the loot strip with every drop or only Rare and up, finished monsters in the list or not. Compact and full each keep their own layout, and the parts you moved stay where you put them, even when you drag the guide away.
+- **A quick tour** shows new players around once. After an update, only the tips for what's new show, once; tick *Don't show tips again* to turn them off for good.
 - **Kill streaks catch fire.** Five souls in a row and the dial starts to smoulder; at 10 it burns, at 20 it blazes, at 40 it turns blue. A fuse under the counter shows how long you have to keep it going.
 
 ### Your whole route, one click away
@@ -83,7 +84,7 @@ Two parts that work together:
   <img src="docs/map-controls.gif" alt="Map controls" width="560">
 </p>
 
-Round or square, resize with the gold grip, hide the monster icons, or fold the map away, all right under the map.
+Round or square, resize with the gold grip, or hide the monster icons, all right under the map. To hide the map itself, click it in edit mode and pick Hide.
 
 ### Pets, stats and settings
 

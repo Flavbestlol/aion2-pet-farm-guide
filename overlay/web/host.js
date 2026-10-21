@@ -103,7 +103,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.18.0";
+  const VERSION = "1.19.0";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -607,6 +607,7 @@
       for (const d of document.querySelectorAll("[data-edit].detached")) add(d); // moved off the guide
       for (const t of document.querySelectorAll("#toasts .toast")) add(t);
     }
+    if (!folded) add($(".tourcard")); // the tour's card (its Next / Skip)
     // edit mode: every part takes the mouse as a whole (to drag it), plus the edit bar and its options
     if (!folded && document.body.classList.contains("editing")) {
       for (const b of document.querySelectorAll("[data-edit]")) add(b);

@@ -21,7 +21,7 @@
     badgeImg: $(".dial .badge img"), pct: $(".dial .pct"), verb: $(".kill .verb"), mobname: $(".mobname"), per: $(".kill .per"),
     petname: $(".petname"), roll: $(".petline .roll"), left: $(".petline .left"), lv: $(".lvline .lv"), lvbar: $(".lvline .bar i"),
     pts: $(".lvline .pts"), kills: $(".kills"), travel: $(".travel"), arrow: $(".travel .arrow"), tp: $(".travel .tp"),
-    walk: $(".travel .walk"), trnote: $(".travel .trnote"), alike: $(".info .alike"), queue: $(".queue"), mapwrap: $(".mapwrap"), mapzone: $(".mapzone"), mapgrip: $(".mapgrip"), mbShape: $(".mb-shape"), mbLoop: $(".mb-loop"), mbIcons: $(".mb-icons"), mbFold: $(".mb-fold"), loot: $(".loot"), emptyGuide: $(".empty-guide"),
+    walk: $(".travel .walk"), trnote: $(".travel .trnote"), alike: $(".info .alike"), queue: $(".queue"), mapwrap: $(".mapwrap"), mapzone: $(".mapzone"), mapgrip: $(".mapgrip"), mbShape: $(".mb-shape"), mbLoop: $(".mb-loop"), mbIcons: $(".mb-icons"), loot: $(".loot"), emptyGuide: $(".empty-guide"),
     search: $(".search"), filter: $(".chips.filter"), petlist: $(".petlist"), stats: $('[data-pane="stats"]'),
     settings: $(".settings"), ver: $(".credit .ver"), toasts: $("#toasts"),
     tip: $(".tip"), tipmob: $(".tipmob"), tipsub: $(".tipsub"), tipring: $(".tipring .f"), tippet: $(".tippet"), tipmobimg: $(".tipmobimg"), tipnav: $(".tipnav"), tipstreak: $(".tipstreak"),
@@ -48,6 +48,11 @@
     // the monster list as rings or bars; the layout you set in edit mode (overlay), per size:
     // { compact: { part: { x, y, w, s, pic, hide } }, full: {…} }
     qStyle: "ring", layout: null,
+    // per-part options: directions "full" | "short" (the teleport only), the loot strip "all" |
+    // "rare" (rare and up), finished monsters in the list shown or not
+    travelText: "full", lootMin: "all", qDone: true,
+    // the tour: the tips you've seen (by id), or none ever again
+    tourSeen: [], tourOff: false,
   };
   let prefs = { ...DEFAULTS };
   let character = null;
@@ -389,13 +394,14 @@
     const has = !!m;
     els.card.hidden = !has;
     els.qwrap.hidden = !has;
-    els.loot.hidden = !has || !prefs.loot || !m.loot.length;
+    els.loot.hidden = !has || !prefs.loot || !lootRows(m).length;
     renderNotice();
     const showMap = has && mapOn(m);
     if ((els.mapzone.style.display !== "none") !== showMap && mapView) setTimeout(() => mapView.resize(), 30);
     els.mapzone.style.display = showMap ? "" : "none";
     if (has) els.travel.classList.toggle("going", travelling(m));
     els.emptyGuide.hidden = has;
+    if (has && !tourOn) maybeTour();
     if (!has) {
       const rest = pets.syncedAt ? offRoute() : [];
       els.emptyGuide.replaceChildren(h("b", "", !pets.syncedAt ? "Waiting for your pets" : rest.length ? "Route done" : "All done"),
@@ -632,6 +638,7 @@
   function renderTravel(m) {
     const t = m.tr, stop = m.stop;
     els.travel.classList.toggle("here", !!t && !!t.here);
+    els.travel.classList.toggle("short", prefs.travelText === "short"); // the teleport only
     els.travel.classList.toggle("wind", !!t && !!t.wind);
     const note = trNote(m);
     els.trnote.hidden = !note;
@@ -696,6 +703,7 @@
     const order = m.queue.map((row) => {
       const el = qCell(row);
       el.classList.toggle("now", row.pid === m.focus?.pid);
+      el.classList.toggle("fin", row.left <= 0 && row.pid !== m.focus?.pid);
       // in the Abyss: this one you can also farm at home
       const home = m.stop.map === "A" && !E.abyssOnlyPet(D, row.pid, st);
       el.classList.toggle("home", home);
@@ -731,20 +739,23 @@
     el.title = `${name} (${RARITY_NAME[rar]}): ${fmtPct(r.pct)} per kill here, ≈${Math.max(1, Math.round(100 / r.pct))} kills each`;
     return el;
   }
+  // the loot strip: everything, or rare and up (Common is rarity 0)
+  const lootRows = (m) => (prefs.lootMin === "rare" ? m.loot.filter((r) => (r.item[1] || 0) >= 1) : m.loot);
   function renderLoot(m) {
-    const k = `${m.stop.key}|${m.loot.map((r) => r.idx).join(",")}`;
+    const rows = lootRows(m);
+    const k = `${m.stop.key}|${rows.map((r) => r.idx).join(",")}`;
     if (k === lootKey) return;
     lootKey = k;
     const track = els.track;
     track.classList.remove("run");
-    track.replaceChildren(...m.loot.map(lootChip));
+    track.replaceChildren(...rows.map(lootChip));
     requestAnimationFrame(() => {
       if (lootKey !== k) return; // another stop's list replaced this one meanwhile
       const box = els.ticker.clientWidth, w = track.scrollWidth;
       if (!box) { lootKey = ""; return; } // not on screen yet: measure next time
       const still = !prefs.effects || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
       if (w <= box + 2 || still) return; // fits, or no motion wanted
-      track.append(...m.loot.map(lootChip)); // a second copy makes the loop seamless
+      track.append(...rows.map(lootChip)); // a second copy makes the loop seamless
       track.style.setProperty("--dur", `${Math.max(14, (w + 4) / 24).toFixed(1)}s`);
       track.classList.add("run");
     });
@@ -1817,13 +1828,23 @@
     {
       const idle = prefs.tipIdle ? `${prefs.tipIdle} min` : "off";
       const SIZE = { tip: "tip", compact: "compact", full: "full" };
-      group("tip", "Size & folding", `farm in ${SIZE[prefs.farmSize] || "compact"}${prefs.tip ? ` · fold after ${idle}` : ""}`);
-      const sizes = [["compact", "Compact"], ["full", "Full"]];
-      if (prefs.tip) sizes.unshift(["tip", "Tip"]);
-      row("While farming", "The size the guide goes back to once you're farming. The button by the padlock switches compact and full any time", seg("farmSize", sizes));
-      row("Open on a new stop", "On the way to a new stop: the full guide with the map. 3 s after your first soul there: back to your farming size", toggle("smartOpen"));
+      group("tip", "Size & folding", `${prefs.smartOpen ? "smart size" : "stays as you set it"}${prefs.tip ? ` · fold after ${idle}` : ""}`);
+      // one choice: the guide sizes itself, or stays the size you pick with the size button
+      const sz = h("div", "seg");
+      for (const [v, label] of [[true, "Smart"], [false, "Stay as I set it"]]) {
+        const b = h("button", "", label);
+        b.type = "button";
+        b.setAttribute("aria-pressed", String(!!prefs.smartOpen === v));
+        b.addEventListener("click", () => { prefs.smartOpen = v; savePrefs(); renderSettings(); });
+        sz.append(b);
+      }
+      row("Sizing", prefs.smartOpen
+        ? `Smart: on the way to a new stop, the full guide with the map; 3 s after your first soul there, back to ${prefs.farmSize === "full" ? "full" : prefs.farmSize === "tip" ? "the tip" : "compact"} (the size you last picked with the button by the padlock)`
+        : `Stays ${prefs.farmSize === "full" ? "full" : "compact"}: the size you picked with the button by the padlock, until you switch it`, sz);
       row("Map in compact", "Show the map in the compact guide too", toggle("compactMap", () => { applyView(); render(); }));
       row("Monster list", "Rings, or bars that fill up. Or the small button at the end of the list", seg("qStyle", [["ring", "Rings"], ["bar", "Bars"]], applyQStyle));
+      row("Finished monsters", "In the monster list, once their pet is done", seg("qDone", [[true, "Show"], [false, "Hide"]], applyQStyle));
+      row("Directions", "The full route (where to walk, the farming loop), or just the teleport", seg("travelText", [["full", "Full route"], ["short", "Teleport only"]], () => render()));
       if (HOST) {
         const lb = h("div", "btnrow");
         const ed = h("button", "btn gold", "Edit layout");
@@ -1852,6 +1873,27 @@
     row("Map", "Shape, size, loop and icons: the small buttons under the map", toggle("map", () => render()));
     if (prefs.map) row("Show the map", "In the full guide. On the way: only until you start farming at the stop", seg("mapWhen", [["always", "Always"], ["way", "On the way"]], () => render()));
     row("Also drops", "The scrolling loot strip under the map", toggle("loot", () => { lootKey = ""; render(); }));
+    if (prefs.loot) row("Drops shown", "Every drop, or only Rare and up", seg("lootMin", [["all", "All"], ["rare", "Rare and up"]], () => { lootKey = ""; render(); }));
+
+    // ── tips ──
+    {
+      const tb = h("div", "btnrow");
+      const again = h("button", "btn", "Show the tour again");
+      again.type = "button";
+      again.addEventListener("click", () => { prefs.tourSeen = []; prefs.tourOff = false; savePrefs(); selectTab("guide"); });
+      group("tips", "Tips", prefs.tourOff ? "off" : "on");
+      const onoff = h("div", "seg");
+      for (const [v, label] of [[false, "On"], [true, "Off"]]) {
+        const b = h("button", "", label);
+        b.type = "button";
+        b.setAttribute("aria-pressed", String(!!prefs.tourOff === v));
+        b.addEventListener("click", () => { prefs.tourOff = v; savePrefs(); renderSettings(); });
+        onoff.append(b);
+      }
+      row("Tips", prefs.tourOff ? "Off: no tips, not even for new features" : "A quick tour the first time, then a tip for each new feature, once", onoff);
+      tb.append(again);
+      row("Tour", "See every tip again, now", tb);
+    }
 
     // ── look ──
     const THEMES = HOST ? [["hud", "HUD"], ["apple", "Apple"], ["ingame", "In-game"], ["classic", "Classic"]] : [["classic", "Classic"], ["ingame", "In-game"]];
@@ -1936,7 +1978,6 @@
     els.mbLoop.setAttribute("aria-pressed", String(prefs.mapLoop !== false));
     els.mbIcons.setAttribute("aria-pressed", String(prefs.mapIcons !== false));
     els.mbIcons.title = prefs.mapIcons === false ? "Show the monster icons" : "Hide the monster icons (see the loop clearly)";
-    els.mbFold.title = prefs.mapFold ? "Show the map" : "Hide the map";
     if (mapView) { mapView.showLoop = prefs.mapLoop !== false; mapView.showIcons = prefs.mapIcons !== false; mapView.kick(); }
   }
   function setMapFold(fold) {
@@ -1966,7 +2007,6 @@
     w.addEventListener("transitionend", function te(e) { if (e.target === w && e.propertyName === "height") { w.removeEventListener("transitionend", te); end(); } });
     setTimeout(end, 600);
   }
-  els.mbFold.addEventListener("click", () => setMapFold(!prefs.mapFold));
   els.mbShape.addEventListener("click", () => {
     prefs.mapShape = mapShape() === "round" ? "square" : "round";
     savePrefs(); applyMapFrame(); Sound.tick();
@@ -2041,6 +2081,7 @@
   const kOf = (el) => (el.getBoundingClientRect().width / (el.offsetWidth || 1)) || 1; // screen px per CSS px
   function applyQStyle() {
     const bars = prefs.qStyle === "bar";
+    els.qwrap.classList.toggle("nodone", prefs.qDone === false);
     els.qwrap.classList.toggle("bars", bars);
     els.qstyle.title = bars ? "Show the monsters as rings" : "Show the monsters as bars";
     els.qstyle.setAttribute("aria-label", els.qstyle.title);
@@ -2268,6 +2309,20 @@
       bar.querySelector(".eb-t").after(view);
     }
     for (const b of view.children) b.setAttribute("aria-pressed", String(b.dataset.v === viewKey()));
+    let pre = bar.querySelector(".eb-presets");
+    if (!pre) {
+      pre = h("div", "eb-presets");
+      pre.append(h("span", "", "Presets:"));
+      for (const [id, label, hint] of PRESETS) {
+        const b = h("button", "eb-pre", label);
+        b.type = "button";
+        b.title = hint;
+        b.dataset.id = id;
+        b.addEventListener("click", () => applyPreset(id));
+        pre.append(b);
+      }
+      bar.querySelector(".eb-hidden").before(pre);
+    }
     const hid = bar.querySelector(".eb-hidden");
     hid.replaceChildren();
     const off = EDIT_PARTS.filter((b) => !(b === "loot" && isCompact()) && isOff(b));
@@ -2292,6 +2347,48 @@
       relayout();
       flash(`↺ ${isCompact() ? "Compact" : "Full"} guide back to how it was`);
     });
+  }
+  // ── presets: a whole layout in one click ──
+  // Built from where the guide is now and how big your screen is (never fixed pixels), then
+  // pinned to the screen like anything you move yourself, so they fit any monitor or resolution.
+  const PRESETS = [
+    ["standard", "Standard", "Everything in one column, as it comes"],
+    ["minimal", "Minimal", "The monster and a bar per monster to kill; short directions; no loot strip"],
+    ["mapside", "Map beside", "The map next to the guide, in compact too"],
+    ["focus", "Big picture", "A bigger monster picture, rings for the list"],
+  ];
+  function applyPreset(id) {
+    closePop();
+    const box = HOST && HOST.appBox ? HOST.appBox() : null;
+    prefs.layout = null;
+    prefs.mapSize = null;
+    prefs.map = true;
+    prefs.loot = true;
+    prefs.travelText = "full";
+    prefs.qStyle = "ring";
+    prefs.compactMap = false;
+    if (id === "minimal") {
+      prefs.qStyle = "bar";
+      prefs.travelText = "short";
+      prefs.layout = { compact: {}, full: { loot: { hide: true } } };
+    }
+    if (id === "focus") prefs.layout = { compact: { focus: { pic: 1.25 } }, full: { focus: { pic: 1.25 }, loot: { hide: true } } };
+    if (id === "mapside" && box) {
+      // beside the guide, on the side toward the middle of the screen, level with the header
+      const W = innerWidth, H = innerHeight, msz = 220, mw = (msz + 4) * box.z, gap = 12 * box.z;
+      const right = document.body.classList.contains("dock-right");
+      const x = right ? box.pl - gap - mw : box.pl + box.pw + gap;
+      const at = { px: Math.max(4, Math.min(W - mw - 4, x)) / W, py: Math.max(4, box.pt) / H };
+      prefs.mapSize = msz;
+      prefs.compactMap = true;
+      prefs.layout = { compact: { map: { ...at } }, full: { map: { ...at } } };
+    }
+    savePrefs();
+    applyQStyle();
+    lootKey = "";
+    relayout();
+    flash(`✨ ${PRESETS.find((p) => p[0] === id)[1]} layout`);
+    Sound.tick();
   }
   function hidePart(b) {
     closePop();
@@ -2493,7 +2590,12 @@
       const pic = (v) => { const P = lay("focus"); P.pic = Math.round(Math.max(0.6, Math.min(1.6, (P.pic || 1) + v)) * 100) / 100; if (P.pic === 1) delete P.pic; savePrefs(); applyLayout(); fillPop(); if (HOST && HOST.onFold) HOST.onFold(false); };
       row("Picture", step(`${Math.round((L.pic || 1) * 100)}%`, () => pic(-0.1), () => pic(0.1)));
     }
-    if (b === "queue") row("Style", seg([["ring", "Rings"], ["bar", "Bars"]], prefs.qStyle === "bar" ? "bar" : "ring", setQStyle));
+    if (b === "queue") {
+      row("Style", seg([["ring", "Rings"], ["bar", "Bars"]], prefs.qStyle === "bar" ? "bar" : "ring", setQStyle));
+      row("Finished ones", seg([[true, "Show"], [false, "Hide"]], prefs.qDone !== false, (v) => { prefs.qDone = v; applyQStyle(); }));
+    }
+    if (b === "travel") row("Shows", seg([["full", "Full route"], ["short", "Teleport only"]], prefs.travelText === "short" ? "short" : "full", (v) => { prefs.travelText = v; render(); }));
+    if (b === "loot") row("Shows", seg([["all", "All"], ["rare", "Rare and up"]], prefs.lootMin === "rare" ? "rare" : "all", (v) => { prefs.lootMin = v; lootKey = ""; render(); }));
     if (b === "map") {
       row("Shape", seg([["round", "Round"], ["square", "Square"]], mapShape(), (v) => { prefs.mapShape = v; applyMapFrame(); }));
       row("Farming loop", seg([[true, "On"], [false, "Off"]], prefs.mapLoop !== false, (v) => { prefs.mapLoop = v; applyMapFrame(); model = null; render(); }));
@@ -2529,7 +2631,105 @@
     pop.style.top = `${y / kz}px`;
   }
 
+  // ── the tour: a few tips, once ──
+  // New players get the whole tour the first time the guide is open. After an update, only the
+  // tips for what's new show (each tip has an id; the ones you've seen are remembered). "Don't
+  // show tips again" turns it off for good; Settings › Tips can show it again.
+  // Adding a feature: add a tip here with a new id, and players see just that one, once.
+  const TOUR = [
+    { id: "route", el: ".top .title", t: "Your route", b: "The stop you're on. Click its name for every stop on the route; the arrows go to the previous or next one." },
+    { id: "size", el: ".sizebtn", t: "Compact or full", b: "Compact shows just what you farm. Full adds the map and the tabs. The header stays where it is when you switch." },
+    { id: "list", el: ".qstyle", t: "Every monster here", b: "Click a monster to farm it first. This button shows them as rings or as bars that fill up." },
+    { id: "lock", el: ".lockbtn", t: "Lock it", b: "Locked, every click goes through to the game. Ctrl+Alt+L locks and unlocks." },
+    { id: "edit", el: ".editbtn", host: true, t: "Make it yours", b: "Move, resize or hide any part: drag it, scroll over it, or click it for its options. To hide the map, click it here and pick Hide. Presets set up a whole layout in one click." },
+    { id: "grip", el: ".cgrip", host: true, t: "Wider or narrower", b: "Drag this corner. Compact and full share the width." },
+    { id: "fold", el: ".foldbtn", t: "Fold it away", b: "Folds the guide into a small tip; click the tip to open it again. Drag the header or the tip anywhere on screen." },
+  ];
+  let tourOn = null, tourTimer = 0;
+  const tourEls = { card: null, ring: null };
+  const tourSteps = () => {
+    const seen = new Set(Array.isArray(prefs.tourSeen) ? prefs.tourSeen : []);
+    return TOUR.filter((s) => !seen.has(s.id) && (!s.host || HOST));
+  };
+  // a moment after the guide is open and showing a stop, if there's anything new to show
+  function maybeTour() {
+    clearTimeout(tourTimer);
+    if (tourOn || prefs.tourOff || (navigator.webdriver && !window.__forceTour)) return;
+    tourTimer = setTimeout(() => {
+      if (tourOn || prefs.tourOff || isFolded() || editing || tab !== "guide" || !getModel() || slOpen) return;
+      const steps = tourSteps().filter((s) => { const e = $(s.el); return e && e.getBoundingClientRect().width > 0; });
+      if (!steps.length) return;
+      const fresh = steps.length === TOUR.filter((s) => !s.host || HOST).length || !(prefs.tourSeen || []).length;
+      startTour(steps, fresh);
+    }, 1800);
+  }
+  function startTour(steps, fresh) {
+    tourOn = { steps, i: 0, fresh };
+    if (!tourEls.card) {
+      tourEls.ring = h("div", "tourring");
+      tourEls.card = h("div", "tourcard");
+      tourEls.card.setAttribute("role", "dialog");
+      document.body.append(tourEls.ring, tourEls.card);
+    }
+    showTourStep();
+    if (HOST && HOST.onFold) HOST.onFold(false); // the card takes the mouse
+  }
+  function markSeen(ids) {
+    const seen = new Set(Array.isArray(prefs.tourSeen) ? prefs.tourSeen : []);
+    for (const id of ids) seen.add(id);
+    prefs.tourSeen = [...seen];
+    savePrefs();
+  }
+  function endTour(all) {
+    if (!tourOn) return;
+    markSeen(all ? tourOn.steps.map((s) => s.id) : tourOn.steps.slice(0, tourOn.i + 1).map((s) => s.id));
+    tourOn = null;
+    tourEls.card.classList.remove("in");
+    tourEls.ring.classList.remove("in");
+    setTimeout(() => { if (!tourOn) { tourEls.card.hidden = true; tourEls.ring.hidden = true; if (HOST && HOST.onFold) HOST.onFold(isFolded()); } }, 260);
+  }
+  function showTourStep() {
+    const T = tourOn, step = T.steps[T.i], target = $(step.el);
+    if (!target || !target.getBoundingClientRect().width) { if (T.i < T.steps.length - 1) { T.i++; return showTourStep(); } return endTour(true); }
+    const card = tourEls.card, ring = tourEls.ring;
+    card.replaceChildren();
+    const last = T.i === T.steps.length - 1;
+    card.append(h("div", "tc-k", `${T.fresh ? "Quick tour" : "New in this version"} · ${T.i + 1}/${T.steps.length}`), h("div", "tc-t", step.t), h("div", "tc-b", step.b));
+    const foot = h("div", "tc-f");
+    const never = h("label", "tc-never");
+    const cb = h("input");
+    cb.type = "checkbox";
+    never.append(cb, " Don't show tips again");
+    const skip = h("button", "btn", "Skip");
+    const next = h("button", "btn gold", last ? "Done" : "Next");
+    skip.type = next.type = "button";
+    const close = (all) => { if (cb.checked) { prefs.tourOff = true; savePrefs(); } endTour(all); };
+    skip.addEventListener("click", () => close(true));
+    next.addEventListener("click", () => { if (last || cb.checked) return close(true); markSeen([step.id]); T.i++; showTourStep(); Sound.tick(); });
+    foot.append(never, h("span", "sp"), skip, next);
+    card.append(foot);
+    card.hidden = ring.hidden = false;
+    placeTour(target);
+    requestAnimationFrame(() => { card.classList.add("in"); ring.classList.add("in"); });
+  }
+  // the ring around the part, the card beside it (below, or above when there's no room)
+  function placeTour(target) {
+    const card = tourEls.card, ring = tourEls.ring;
+    const r = target.getBoundingClientRect(), W = innerWidth, H = innerHeight, pad = 5;
+    const kz = parseFloat(getComputedStyle(card).zoom) || 1;
+    ring.style.cssText = `left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px`;
+    const cw = card.offsetWidth * kz, ch = card.offsetHeight * kz;
+    let x = Math.max(8, Math.min(W - cw - 8, r.left + r.width / 2 - cw / 2));
+    let y = r.bottom + 12 + ch <= H - 8 ? r.bottom + 12 : Math.max(8, r.top - 12 - ch);
+    card.style.left = `${x / kz}px`;
+    card.style.top = `${y / kz}px`;
+  }
+  addEventListener("resize", () => { if (tourOn) showTourStep(); });
+  window.FG_tourOpen = () => !!tourOn;
+
   function applyPrefs() {
+    // the map's own fold button is gone (edit mode hides the map): a folded map is a hidden one
+    if (prefs.mapFold) { prefs.mapFold = false; prefs.map = false; }
     applyLock();
     applyTip();
     applyView();
