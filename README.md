@@ -60,7 +60,8 @@ Two parts that work together:
 
 - **A route over every unfinished pet**, grouped so you farm several pets at each stop, in the order you choose (by genus, or fewest stops).
 - **Click the stop name** for every stop at once, with how far its pets are (%), the souls left and who's there. Search by pet, monster or zone.
-- **The Rift route is kept apart.** The main route stays on your side of the world and in the Abyss. The Rift route is the other side's map, with the pets you can only get there first.
+- **Three routes, kept apart.** The **main** route stays on your side of the world. The **Abyss** route is one walking loop through Lower Reshanta from your side's base, covering every pet that drops there. The **Rift** route is the other side's map, with the pets you can only get there first.
+- **The Abyss.** When you teleport in, it offers the Abyss route, or tells you every pet in there is done. Its monsters carry the Abyss's own names ("Abyss Coradon" gives Eternal Coradon souls): the guide shows both, and the Pets tab tags each pet *Abyss only* or *Abyss too*.
 - **Rift reminders.** Five minutes before each Rift (every 3 hours, in your server's time) it offers the Rift route. When you cross over, it switches by itself, and back when you return.
 
 ### The best loop through the spawns
@@ -85,7 +86,7 @@ Round or square, resize with the gold grip, hide the monster icons, or fold the 
   <img src="docs/tabs.gif" alt="The Pets, Stats and Settings tabs" width="760">
 </p>
 
-- **Pets:** every pet with its level and souls left, with tags for Rift-only, Abyss and boss pets (they follow your faction). Click one to be guided to its best spots.
+- **Pets:** every pet with its level and souls left, with tags for Abyss, Rift and boss pets (they follow your faction). Click one to be guided to its best spots.
 - **Stats:** souls per hour, this session and today, and your best farming areas.
 - **Settings:** grouped into sections: your character, route, tip and folding, map, look, sound, overlay.
 
@@ -97,7 +98,7 @@ Round or square, resize with the gold grip, hide the monster icons, or fold the 
 
 - **Dungeons and raids:** field souls don't drop inside, so the guide folds away by itself and opens again when you leave. A boss soul names the dungeon and lists the boss souls you still need.
 - **Islands:** the first trip to an island goes by Windstream, and the guide tells you where it is.
-- **The Abyss:** it sends you to the fragments next to your own base, and only from level 45.
+- **The Abyss:** its own route, from your own base (level 45 and up); stop to stop, it points the way from the last stop.
 - **Look-alikes:** it warns you when a monster nearby gives a pet you've already finished.
 
 ## Install

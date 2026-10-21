@@ -644,11 +644,11 @@ body.locked .t1 .chev { display: none; }
 body.riftmode .t1 .stopno { color: var(--rift) !important; text-shadow: 0 0 10px rgba(197, 140, 255, 0.55); }
 body.riftmode .t1 .chev { stroke: var(--rift); }
 .sl-seg {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 0 2px 8px; padding: 3px; border-radius: 11px;
+  position: relative; display: grid; grid-template-columns: repeat(var(--n, 2), 1fr); margin: 0 2px 8px; padding: 3px; border-radius: 11px;
   background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07);
 }
 .sl-seg::before { /* the sliding pill under the chosen route */
-  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 8px;
+  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n, 2)); border-radius: 8px;
   transform: translateX(var(--x, 0%)); transition: transform 0.38s cubic-bezier(.2,.9,.3,1.15), background 0.3s, box-shadow 0.3s;
   background: rgba(242, 195, 91, 0.16); box-shadow: inset 0 0 0 1px rgba(242, 195, 91, 0.45);
 }
@@ -659,6 +659,7 @@ body.riftmode .t1 .chev { stroke: var(--rift); }
 }
 .sl-tab[aria-pressed="true"].main { color: var(--gold-hi); }
 .sl-tab[aria-pressed="true"].rift { color: #e2c8ff; }
+.sl-tab[aria-pressed="true"].abyss { color: #cfe2ff; }
 .sl-tab .c { font-size: 10.5px; padding: 0 5px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: var(--ink-2); }
 .sl-tab .here { position: absolute; top: 5px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--done); box-shadow: 0 0 6px var(--done); }
 .sl-rift { margin-top: 4px; padding: 5px 8px; border-radius: 8px; color: #e2c8ff; background: rgba(197, 140, 255, 0.1); border: 1px solid rgba(197, 140, 255, 0.25); }
@@ -666,6 +667,18 @@ body.riftmode .t1 .chev { stroke: var(--rift); }
 @keyframes rift-glow { 50% { box-shadow: 0 0 14px rgba(197, 140, 255, 0.55); } }
 .sl-pet.only { border-color: var(--rift) !important; box-shadow: 0 0 0 1.5px rgb(17, 20, 28), 0 0 6px rgba(197, 140, 255, 0.8); }
 .stoplist:has(.sl-tab.rift[aria-pressed="true"]) { border-color: rgba(197, 140, 255, 0.4); }
+/* ── the Abyss: its own route, in the Abyss's blue ── */
+.tag.abyss { background: rgba(127, 178, 255, 0.16); }
+.tag.abyss2 { color: var(--abyss); border-style: dashed; opacity: 0.85; }
+body.abyssmode .t1 .stopno { color: var(--abyss) !important; text-shadow: 0 0 10px rgba(127, 178, 255, 0.55); }
+body.abyssmode .t1 .chev { stroke: var(--abyss); }
+.sl-seg:has(.abyss[aria-pressed="true"])::before { background: rgba(127, 178, 255, 0.16); box-shadow: inset 0 0 0 1px rgba(127, 178, 255, 0.5); }
+.sl-abyss { margin-top: 4px; padding: 5px 8px; border-radius: 8px; color: #cfe2ff; background: rgba(127, 178, 255, 0.1); border: 1px solid rgba(127, 178, 255, 0.25); }
+.stoplist:has(.sl-tab.abyss[aria-pressed="true"]) { border-color: rgba(127, 178, 255, 0.4); }
+.stoplist:has(.sl-tab.abyss[aria-pressed="true"]) .sl-ring .f { stroke: var(--abyss); filter: drop-shadow(0 0 2px rgba(127, 178, 255, 0.6)); }
+.stoplist:has(.sl-tab.abyss[aria-pressed="true"]) .sl-row.cur { background: linear-gradient(90deg, rgba(127, 178, 255, 0.18), rgba(127, 178, 255, 0.04)); box-shadow: inset 0 0 0 1px rgba(127, 178, 255, 0.4); }
+.stoplist:has(.sl-tab.abyss[aria-pressed="true"]) .sl-row.cur::before { background: var(--abyss); box-shadow: 0 0 8px var(--abyss); }
+.stoplist:has(.sl-tab.abyss[aria-pressed="true"]) .sl-pet.only { border-color: var(--abyss) !important; box-shadow: 0 0 0 1.5px rgb(17, 20, 28), 0 0 6px rgba(127, 178, 255, 0.8); }
 .stoplist:has(.sl-tab.rift[aria-pressed="true"]) .sl-ring .f { stroke: var(--rift); filter: drop-shadow(0 0 2px rgba(197, 140, 255, 0.6)); }
 .stoplist:has(.sl-tab.rift[aria-pressed="true"]) .sl-row.cur { background: linear-gradient(90deg, rgba(197, 140, 255, 0.18), rgba(197, 140, 255, 0.04)); box-shadow: inset 0 0 0 1px rgba(197, 140, 255, 0.4); }
 .stoplist:has(.sl-tab.rift[aria-pressed="true"]) .sl-row.cur::before { background: var(--rift); box-shadow: 0 0 8px var(--rift); }

@@ -10,7 +10,7 @@ Tells you where to farm every pet's souls, in what order, and which areas pay be
   pets give (owned effects per genus, and an estimate of each genus' insight level).
 - **Settings:** faction (auto from the server number), goal level, route order and genus priority, Rift trips,
   the low-level monster penalty, next stop by itself, map, effects, sounds.
-- **Rift route** (separate from the main route) and a **stop list** (click the stop name).
+- **Abyss route** and **Rift route** (separate from the main route), and a **stop list** (click the stop name).
 
 ## Install (developer mode)
 

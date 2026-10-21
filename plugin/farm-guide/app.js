@@ -40,7 +40,7 @@
     levelPenalty: false, myLevel: 0, autoNext: true, effects: true, sounds: true, volume: 0.5, map: true, filter: "todo",
     loot: true, freeAuto: true, freeAfter: 3, locked: false, smartOpen: true, theme: "classic", tip: false, tipPos: "bottom", tipAuto: 0, tipIdle: 3, folded: false,
     mapShape: null, mapSize: null, mapFold: false, mapLoop: true, mapIcons: true, tipResume: "open", sOpen: { you: true },
-    dungeonFold: "fold", slShowDone: false, riftAlert: "on",
+    dungeonFold: "fold", slShowDone: false, riftAlert: "on", abyssAlert: "on",
   };
   let prefs = { ...DEFAULTS };
   let character = null;
@@ -50,9 +50,20 @@
   let log = []; // [time, pet, amount, area, map]
   let levelLog = []; // [time, pet, level]
   let route = []; // the route the guide follows now: routes[mode]
-  // Two routes: the main one (your side's map and the Abyss) and the Rift route (the other side's
-  // map, for when a Rift is open). The main one first; the Rift one when you're over there.
-  let routes = { main: [], rift: [] }, mode = "main";
+  // Three routes: the main one (your side's map), the Abyss route (Lower Reshanta, the PvP zone,
+  // from Lv 45) and the Rift route (the other side's map, for when a Rift is open). The main one
+  // first; the Abyss one when you go in; the Rift one when you're over there.
+  let routes = { main: [], abyss: [], rift: [] }, mode = "main";
+  const MODES = ["main", "abyss", "rift"];
+  const MODE_ICON = { main: "🧭 ", abyss: "⚔️ ", rift: "🌀 " };
+  const MODE_NAME = { main: "Main route", abyss: "Abyss route", rift: "Rift route" };
+  // the Abyss opens at Lv 45 (unknown level: let it through)
+  const abyssOpen = () => { const ab = D.community && D.community.abyss, lv = settings().myLevel; return !ab || !lv || lv >= ab.minLevel; };
+  // where to go when a route is done: the next one with work
+  function nextRoute(from) {
+    const order = from === "main" ? ["abyss", "rift"] : from === "abyss" ? ["main", "rift"] : ["main", "abyss"];
+    return order.find((m) => (m !== "abyss" || abyssOpen()) && routes[m].some(hasWork)) || null;
+  }
   let idx = 0;
   let guide = null; // { pid, spots, i }
   let tab = "guide";
@@ -139,10 +150,15 @@
     spotCache.clear();
     if (typeof petRows !== "undefined") petRows.clear(); // tags (Rift/Abyss) depend on the faction
     const st = settings();
-    routes.main = E.buildRoute(D, pets.levels, pets.points, { ...st, rift: false });
+    routes.main = E.buildRoute(D, pets.levels, pets.points, { ...st, rift: false, noAbyss: true });
+    routes.abyss = E.buildRoute(D, pets.levels, pets.points, { ...st, abyssOnly: true });
     routes.rift = st.rift ? E.buildRoute(D, pets.levels, pets.points, { ...st, riftOnly: true }) : [];
-    mode = rstate.mode === "rift" && routes.rift.length ? "rift" : "main";
-    if (!routes.main.length && routes.rift.length) mode = "rift"; // the main route is done: the Rift's turn
+    mode = MODES.includes(rstate.mode) && routes[rstate.mode].length ? rstate.mode : "main";
+    // the main route is done: the next one's turn (the Abyss from Lv 45, then the Rift)
+    if (!routes.main.length && mode === "main") {
+      const order = ["abyss", "rift"].filter((m) => (m !== "abyss" || abyssOpen()) && routes[m].length);
+      if (order.length) mode = order[0];
+    }
     route = routes[mode];
     if (rstate.curBy && rstate.curBy[mode]) rstate.cur = rstate.curBy[mode];
     try { closeStops(true); } catch (e) {} // its rows point into the old route
@@ -182,6 +198,7 @@
     try { closeStops(true); } catch (e) {}
     setStop(i);
     document.body.classList.toggle("riftmode", m === "rift");
+    document.body.classList.toggle("abyssmode", m === "abyss");
     if (why) flash(why);
     render();
     return true;
@@ -224,7 +241,16 @@
     const s = settings();
     const contents = E.stopContents(D, stop, s);
     const queue = E.stopQueue(D, stop, contents, pets.levels, pets.points, s);
-    const tr = E.travel(D, stop, s);
+    let tr = E.travel(D, stop, s);
+    // the Abyss route is one walk from your base: from the second stop on, the way is from the last
+    // stop (there's no Kibelisk in the Abyss but the two bases), when that's nearer
+    if (mode === "abyss" && !guide && stop.map === "A" && idx > 0 && route[idx] === stop) {
+      const prev = route[idx - 1], d = prev && prev.map === "A" ? Math.hypot(stop.x - prev.x, stop.y - prev.y) : Infinity;
+      if (tr && d < tr.dist) {
+        const deg = E.bearing(prev.x, prev.y, stop.x, stop.y);
+        tr = { from: true, name: E.zoneAt(D, "A", prev.x, prev.y).split(" - ").pop(), tp: 0, x: prev.x, y: prev.y, dist: Math.round(d), deg, dir: E.dirName(deg), rift: false, here: false };
+      }
+    }
     const zone = E.zoneAt(D, stop.map, stop.x, stop.y);
     const loot = E.stopLoot(D, contents, 8);
     // ring baseline: souls left on each of the stop's pets when it was first shown
@@ -289,7 +315,7 @@
   // pets still below the goal that the route can't take, and why (a field boss, the Abyss below
   // Lv 45, the other side with Rift trips off)
   function offRoute() {
-    const s = settings(), inRoute = new Set([...routes.main, ...routes.rift].flatMap((st) => st.pets));
+    const s = settings(), inRoute = new Set([...routes.main, ...routes.abyss, ...routes.rift].flatMap((st) => st.pets));
     const ab = D.community && D.community.abyss;
     return Object.keys(D.pets).filter((p) => E.isFarmable(D, p) && leftOf(p) > 0 && !inRoute.has(p)).map((pid) => {
       const mobs = D.pets[pid].d.map((n) => D.mobs[n]), maps = new Set(mobs.map((m) => m.map));
@@ -301,6 +327,7 @@
   }
   function renderHeader() {
     document.body.classList.toggle("riftmode", mode === "rift" && !guide);
+    document.body.classList.toggle("abyssmode", mode === "abyss" && !guide);
     const stop = currentStop();
     const m = stop ? getModel() : null;
     if (!stop) {
@@ -324,7 +351,7 @@
       els.prev.title = guide.i === 0 ? "Back to the route" : "Previous spot";
       els.next.title = "Next spot";
     } else {
-      els.stopno.textContent = `${glassy() ? "" : mode === "rift" ? "🌀 " : "🧭 "}${mode === "rift" ? "Rift" : "Stop"} ${idx + 1}/${route.length}`;
+      els.stopno.textContent = `${glassy() ? "" : MODE_ICON[mode]}${mode === "rift" ? "Rift" : mode === "abyss" ? "Abyss" : "Stop"} ${idx + 1}/${route.length}`;
       els.zone.textContent = `· ${m.zone}`;
       els.prev.title = "Previous stop";
       els.next.title = "Next stop";
@@ -498,7 +525,7 @@
 
   // how a travel step reads: a teleport on your side, a landmark through a Rift (its Kibelisks aren't yours)
   const fmtDist = (d) => (d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d / 10) * 10} m`);
-  const trFrom = (t) => (t.rift ? `near ${t.name}` : t.tp ? `Teleport #${t.tp} ${t.name}` : `Go to ${t.name}`);
+  const trFrom = (t) => (t.from ? `from ${t.name}` : t.rift ? `near ${t.name}` : t.tp ? `Teleport #${t.tp} ${t.name}` : `Go to ${t.name}`);
   function trWalk(t, short) {
     if (t.wind) return `then ${fmtDist(t.dist)} ${t.dir} to the Windstream${short ? "" : " · ride it over"}`;
     if (t.here) return short ? "right there" : "The circle is right at the Kibelisk";
@@ -579,7 +606,8 @@
     els.tp.replaceChildren();
     if (stop.rift) els.tp.append(h("span", "tag-rift", `Rift to ${mapLabel(stop.map)} · `));
     else if (stop.map === "A") els.tp.append(h("span", "tag-abyss", "Abyss · "));
-    if (t.rift) { els.tp.append("near "); els.tp.append(h("b", "", t.name)); }
+    if (t.from) { els.tp.append("From the last stop, "); els.tp.append(h("b", "", t.name)); }
+    else if (t.rift) { els.tp.append("near "); els.tp.append(h("b", "", t.name)); }
     else { els.tp.append(t.tp ? "Teleport " : "Go to "); els.tp.append(h("b", "", t.tp ? `#${t.tp} ${t.name}` : t.name)); }
     els.walk.textContent = trWalk(t, false);
     const is = t.wind || t.first;
@@ -889,6 +917,13 @@
       return mk(["You're farming ", h("b", "", petName(pid)), ". Guide it from where you are?"],
         () => { cancelFree(); enterFree(pid); }, () => { offer = null; renderSuggest(); }, "Yes", "No");
     }
+    if (abyssOffer && (mode === "abyss" || place.world !== "A")) abyssOffer = null;
+    if (abyssOffer) {
+      const st = settings(), work = routes.abyss.filter(hasWork);
+      const only = new Set(work.flatMap((x) => x.pets).filter((p) => E.abyssOnlyPet(D, p, st) && leftOf(p) > 0)).size;
+      return mk(["⚔️ ", h("b", "", "You're in the Abyss"), ` · ${work.length} Abyss stop${work.length === 1 ? "" : "s"}${only ? `, ${only} pet${only === 1 ? "" : "s"} you can't farm at home` : ""}. Switch to the Abyss route?`],
+        () => { abyssOffer = null; setMode("abyss", "⚔️ Abyss route"); renderSuggest(); }, () => { abyssOffer = null; renderSuggest(); }, "Abyss route", "Not now");
+    }
     if (riftOffer && (mode === "rift" || Date.now() > riftOffer.until)) riftOffer = null;
     if (riftOffer) {
       const open = Date.now() >= riftOffer.opensAt, st = settings();
@@ -956,16 +991,39 @@
     render();
   }
   // ── which continent you're on: your own, or the other side's through a Rift ──
-  const worldOf = (id) => places.worlds[id] || (CM.worlds && CM.worlds[id]) || (id >= 101000 && id < 102000 ? "L" : null);
+  const worldOf = (id) => places.worlds[id] || (CM.worlds && CM.worlds[id]) || (id >= 101000 && id < 102000 ? "L" : id >= 111000 && id < 112000 ? "D" : null);
   let riftAuto = false; // the guide switched to the Rift route by itself (so it switches back too)
+  let abyssOffer = null;
   function followWorld(was) {
     const st = settings(), other = E.otherMap(st), own = E.ownMap(st);
+    // into the Abyss: offer its route (or say there's nothing left to farm in there)
+    if (place.world === "A" && was !== "A") return enterAbyss();
+    if (was === "A" && place.world !== "A") {
+      abyssOffer = null;
+      if (mode === "abyss") setMode(routes.main.some(hasWork) ? "main" : nextRoute("abyss") || "main", "🧭 Out of the Abyss: back on the main route");
+      renderSuggest();
+      if (place.world !== other) return;
+    }
     if (place.world === other && mode === "main" && routes.rift.some(hasWork)) {
       if (setMode("rift", `🌀 ${mapLabel(other)}: on the Rift route`)) { riftAuto = true; riftOffer = null; Sound.open(); }
     } else if (place.world && place.world !== other && was === other && mode === "rift") {
       riftAuto = false;
       setMode("main", place.world === own ? "🧭 Home again: back on the main route" : "🧭 Back on the main route");
     }
+  }
+  function enterAbyss() {
+    if (mode === "abyss" || prefs.abyssAlert === "off") return;
+    if (!routes.abyss.some(hasWork)) {
+      // nothing left in here: say so once, quietly
+      const msg = "⚔️ The Abyss: every pet you can farm here is done";
+      toast(msg, "done", 4500);
+      if (isFolded()) tipFlash(msg, 5000);
+      return;
+    }
+    abyssOffer = { at: Date.now() };
+    if (isFolded()) tipFlash(`⚔️ You're in the Abyss · ${routes.abyss.filter(hasWork).length} Abyss stops`, 6000);
+    Sound.list(true);
+    renderSuggest();
   }
   // a live soul says which continent you're on: a pet that spawns on only one of them gives it away.
   // That names the map id of the last map load too, so the next trip there is known on arrival.
@@ -1224,7 +1282,8 @@
       const n = nextWork(idx, 1);
       if (n === idx && !hasWork(route[idx])) {
         busy = false;
-        if (mode === "main" && routes.rift.some(hasWork)) return setMode("rift", "🌀 Main route done: the Rift route is next");
+        const nx = nextRoute(mode);
+        if (nx) return setMode(nx, `${MODE_ICON[nx]}${MODE_NAME[mode]} done: the ${MODE_NAME[nx]} is next`);
         return render();
       }
       if (!isFolded()) els.card.classList.add("out");
@@ -1270,9 +1329,12 @@
     else if (bossOnly || (acq && !acq.startsWith("Maybe"))) tags.push(["boss", "Boss"]);
     else if (!p.d.length) tags.push(p.box.length ? ["chest", "Chest only"] : ["closed", "Other"]);
     else if (!maps.has(own) && !maps.has("A") && maps.has(other)) tags.push(["rift", "Rift only"]);
+    else if (!maps.has(own) && maps.has("A") && !maps.has(other)) tags.push(["abyss", "Abyss only"]);
     else {
+      // not on your side's map: the Abyss route has it (and the Rift route, if it's over there too)
       if (!maps.has(own) && maps.has("A")) tags.push(["abyss", "Abyss"]);
-      // also on the other side's map: farmable on the Rift route too (which map that is: your faction)
+      // also in the Abyss, or on the other side's map: those routes have it too (which map that is: your faction)
+      else if (maps.has("A")) tags.push(["abyss2", "Abyss too"]);
       if (maps.has(other)) tags.push(["rift2", `Rift too`]);
     }
     if (p.dun) tags.push(["", "Dungeon"]);
@@ -1293,6 +1355,7 @@
       ["all", "All", () => true],
       ...E.GENERA.map((g) => [g, E.GENUS_NAME[g], (pid) => D.pets[pid].g === g && !done(pid), E.GENUS_COLOR[g]]),
       // pets you can farm over a Rift (the other side's map), Rift-only ones first in the sort
+      ["abyss", "⚔️ Abyss", (pid) => farm(pid) && !done(pid) && D.pets[pid].d.some((n) => D.mobs[n].map === "A"), "var(--abyss)"],
       ["rift", "🌀 Rift", (pid) => farm(pid) && !done(pid) && D.pets[pid].d.some((n) => D.mobs[n].map === E.otherMap(settings())), "var(--rift)"],
       ["done", "Done", done],
     ];
@@ -1638,6 +1701,7 @@
     }
     row("Rift route", "A second route on the other side's map, for when a Rift is open. The main route stays on your side", toggle("rift", reroute));
     if (prefs.rift) row("Rift alerts", "5 minutes before each Rift: offer the Rift route", seg("riftAlert", [["on", "On"], ["off", "Off"]]));
+    row("Abyss route", "When you enter the Abyss: offer the Abyss route, or say when every pet in there is done", seg("abyssAlert", [["on", "Ask"], ["off", "Off"]]));
     row("Skip low monsters", "Count monsters 10+ levels below you as rare (they're often cleared by others)", toggle("levelPenalty", reroute));
     row("Next stop by itself", "When every pet at a stop is done", toggle("autoNext"));
     row("Free route", "Farming a pet that isn't on the stop? The guide picks it up where you are", toggle("freeAuto"));
@@ -2034,14 +2098,15 @@
       return { i, s, zone, left, pct, live, done: left <= 0, find };
     });
   }
-  // Route | Rift: the two routes, with how many stops each still has
+  // Main | Abyss | Rift: the routes, with how many stops each still has
   function renderSlSeg() {
     const seg = els.slSeg;
-    const has = routes.rift.length > 0;
-    seg.hidden = !has;
-    if (!has) return;
+    const tabs = [["main", "Main"], ["abyss", "⚔️ Abyss"], ["rift", "🌀 Rift"]].filter(([m]) => m === "main" || routes[m].length);
+    seg.hidden = tabs.length < 2;
+    if (seg.hidden) return;
     const n = (m) => routes[m].filter(hasWork).length;
-    seg.replaceChildren(...[["main", "Main route"], ["rift", "🌀 Rift"]].map(([m, label]) => {
+    seg.style.setProperty("--n", String(tabs.length));
+    seg.replaceChildren(...tabs.map(([m, label]) => {
       const b = h("button", "sl-tab " + m);
       b.type = "button";
       b.dataset.m = m;
@@ -2050,7 +2115,7 @@
       if (m === mode && !guide) b.append(h("i", "here"));
       return b;
     }));
-    seg.style.setProperty("--x", slView === "rift" ? "100%" : "0%");
+    seg.style.setProperty("--x", `${Math.max(0, tabs.findIndex(([m]) => m === slView)) * 100}%`);
   }
   function slGroup(s) { return s.map === "A" ? "Abyss" : `${s.rift ? "Rift · " : ""}${mapLabel(s.map)}`; }
   function renderStops() {
@@ -2064,6 +2129,11 @@
     // the whole route at a glance
     const left = rows.reduce((a, r) => a + r.left, 0), all = rows.length;
     els.slSum.replaceChildren(`${all - doneN}/${all} stops to go · ${left.toLocaleString()} souls left${q ? ` · ${shown.length} match${shown.length === 1 ? "" : "es"}` : ""}`);
+    if (slView === "abyss") {
+      // how to get in, and from what level
+      const ab = D.community && D.community.abyss, st = settings();
+      if (ab) els.slSum.append(h("div", "sl-abyss", `⚔️ Lower Reshanta · Lv ${ab.minLevel}+ · start at your base, ${ab.base[E.sideOf(st)]}${abyssOpen() ? "" : ` · you're Lv ${st.myLevel}`}`));
+    }
     if (slView === "rift") {
       // when you can go: the next Rift, in your clock
       const c = riftClock();
@@ -2096,7 +2166,7 @@
       const pets = h("span", "sl-pets");
       const st0 = settings();
       for (const p of r.live.slice(0, 5)) {
-        const im = h("img", "sl-pet" + (slView === "rift" && E.riftOnlyPet(D, p, st0) ? " only" : ""));
+        const im = h("img", "sl-pet" + ((slView === "rift" && E.riftOnlyPet(D, p, st0)) || (slView === "abyss" && E.abyssOnlyPet(D, p, st0)) ? " only" : ""));
         im.src = portrait(p);
         im.alt = "";
         im.style.setProperty("--c", colorOf(p));
@@ -2163,7 +2233,7 @@
   function pickStop(i) {
     closeStops(true);
     Sound.pick();
-    if (slView !== mode) { setMode(slView, slView === "rift" ? "🌀 Rift route" : "🧭 Main route"); riftAuto = false; }
+    if (slView !== mode) { setMode(slView, `${MODE_ICON[slView]}${MODE_NAME[slView]}`); riftAuto = false; }
     if (guide) { guide = null; model = null; }
     if (i === idx) return render();
     if (!isFolded()) els.card.classList.add("out");

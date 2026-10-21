@@ -51,9 +51,10 @@
       starts: [120, 300, 480, 660, 840, 1020, 1200, 1380], minutes: 10,
       zones: { 1: "America/New_York", 2: "America/Los_Angeles", 3: "Europe/Berlin", 4: "America/Sao_Paulo", 5: "Asia/Seoul" },
     },
-    // Map ids in the game's map-load record (A2 Tools' own captures): 1010 is World_L_A and 101xxx its
-    // layers. The rest (the other continent, the Abyss) are learned from where your souls come from.
-    worlds: { 1010: "L" },
+    // Map ids in the game's map-load record: 1010 is World_L_A and 101xxx its layers (A2 Tools' own
+    // captures); 1110 is Altgard and 20 Lower Reshanta, the Abyss (the game's map table, as A2 Tools'
+    // pet-sources tool reads it). Others are learned from where your souls come from.
+    worlds: { 1010: "L", 1110: "D", 20: "A" },
     // Continent sources the community check could not confirm against the soul-item records. They stay
     // in the guide, weighted down and marked, so a confirmed source (often in the Abyss) comes first.
     held: {

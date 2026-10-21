@@ -123,15 +123,19 @@
   }
   // The maps each pet may be farmed on: own map and Abyss; the other side's
   // map (through a Rift) only when the pet has no spot on those, and Rift trips are on.
+  // Three routes use it: the main one (own map only: noAbyss), the Abyss route (abyssOnly) and the
+  // Rift route (riftOnly).
   function allowedMaps(D, pid, settings) {
     const pet = D.pets[pid];
     const maps = new Set(pet.d.map((n) => D.mobs[n].map));
     const own = ownMap(settings), other = otherMap(settings);
     // the Rift route: every unfinished pet that spawns on the other side's map, nothing else
     if (settings.riftOnly) return maps.has(other) ? new Set([other]) : new Set();
+    // the Abyss route: every unfinished pet that spawns in the Abyss, nothing else
+    if (settings.abyssOnly) return maps.has("A") ? new Set(["A"]) : new Set();
     const ok = new Set();
     if (maps.has(own)) ok.add(own);
-    if (maps.has("A")) ok.add("A");
+    if (maps.has("A") && !settings.noAbyss) ok.add("A");
     if (!ok.size && maps.has(other) && settings.rift) ok.add(other);
     // the Abyss opens at Lv 45: below that, a pet with another source goes there instead
     const ab = D.community && D.community.abyss;
@@ -145,6 +149,11 @@
   function riftOnlyPet(D, pid, settings) {
     const maps = new Set(D.pets[pid].d.map((n) => D.mobs[n].map));
     return maps.has(otherMap(settings)) && !maps.has(ownMap(settings)) && !maps.has("A");
+  }
+  // a pet you can't farm on your own side's map, but can in the Abyss
+  function abyssOnlyPet(D, pid, settings) {
+    const maps = new Set(D.pets[pid].d.map((n) => D.mobs[n].map));
+    return maps.has("A") && !maps.has(ownMap(settings));
   }
   function isFarmable(D, pid) {
     const p = D.pets[pid];
@@ -285,7 +294,8 @@
     const covers = (c, p) => (c.dens[p] || 0) >= Math.max(0.5 * best[p], Math.min(best[p], 2));
     for (const c of cands) c.cov = Object.keys(c.dens).filter((p) => covers(c, p));
 
-    const order = settings.order === "nearest" ? null : settings.priority || GENERA;
+    // the Abyss (a PvP zone you walk from your base): fewest stops, then one loop from the base
+    const order = settings.order === "nearest" || settings.abyssOnly ? null : settings.priority || GENERA;
     const left = new Set(todo.filter((p) => best[p]));
     const stops = [];
     while (left.size) {
@@ -312,11 +322,16 @@
     }
     // bonus pets: unfinished pets that also drop at the stop, assigned to another stop
     for (const s of stops) s.bonus = Object.keys(s.dens).filter((p) => !s.pets.includes(p) && covers(s, p));
-    return orderStops(stops, settings);
+    return orderStops(stops, settings, settings.abyssOnly ? abyssBase(D, settings) : null);
+  }
+  // your side's Kibelisk in the Abyss (where you arrive)
+  function abyssBase(D, settings) {
+    const A = D.maps.A;
+    return A && A.kib.find((k) => k[4] === sideOf(settings)) || null;
   }
   // Priority mode keeps the buckets in order (Cogni stops first...); within a bucket, own map →
   // Abyss → Rift, nearest-neighbour inside a map.
-  function orderStops(stops, settings) {
+  function orderStops(stops, settings, from = null) {
     const out = [];
     const groups = [];
     for (const s of stops) {
@@ -326,8 +341,9 @@
     groups.sort((a, b) => { const [ab, am] = a.split(":").map(Number), [bb, bm] = b.split(":").map(Number); return ab - bb || am - bm; });
     for (const g of groups) {
       const rest = stops.filter((s) => `${s.bucket}:${mapRank(s.map, settings)}` === g);
-      // start from the stop with the most pets, then always the nearest one
-      rest.sort((a, b) => b.pets.length - a.pets.length);
+      // start from the stop with the most pets (or the one nearest where you arrive), then always the nearest one
+      if (from) rest.sort((a, b) => Math.hypot(a.x - from[0], a.y - from[1]) - Math.hypot(b.x - from[0], b.y - from[1]));
+      else rest.sort((a, b) => b.pets.length - a.pets.length);
       let cur = rest.shift();
       while (cur) {
         out.push(cur);
@@ -733,7 +749,7 @@
   }
 
   const api = { NEEDED, MAX_LEVEL, GENERA, GENUS_NAME, GENUS_COLOR, OWNED_EFFECT, INSIGHT_EXP, GENUS_LEVEL_EXP, STOP_R,
-    riftOnlyPet, soulsLeft, soulsTotal, effectGain, totalEffects, zoneAt, bearing, dirName, sideOf, ownMap, otherMap, mapRank,
+    riftOnlyPet, abyssOnlyPet, soulsLeft, soulsTotal, effectGain, totalEffects, zoneAt, bearing, dirName, sideOf, ownMap, otherMap, mapRank,
     allowedMaps, isFarmable, bestSpots, buildRoute, islandAt, gateOf, lookAlikes, farmLoop, campR, stopContents, stopQueue, travel, stopLoot, expectedKills, sessionStats, distToPet, petsNear };
   root.FGEngine = api;
   if (typeof module !== "undefined") module.exports = api;
