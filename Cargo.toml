@@ -1,0 +1,14 @@
+# The workspace: the overlay app (overlay/src-tauri). At the root so Flav-Toolkit's add-on packager
+# builds it as it builds every add-on (`cargo build --release --locked -p farm-guide-overlay`).
+# The tests under tests/ are small programs of their own.
+[workspace]
+members = ["overlay/src-tauri"]
+exclude = ["tests/setup_core", "tests/feed_core", "tests/install_core"]
+resolver = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

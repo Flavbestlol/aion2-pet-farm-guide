@@ -7,7 +7,7 @@ use install_core::*;
 fn main() {
     let mut ok = true;
     let mut check = |name: &str, cond: bool| { println!("{} {name}", if cond { "✅" } else { "❌" }); ok &= cond; };
-    let template = include_str!("../../../overlay/addon.json");
+    let template = include_str!("../../../addon.json");
     let out = addon_json(template, "1.24.0").unwrap();
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     check("addon.json takes the plugin's version", v["version"] == "1.24.0");

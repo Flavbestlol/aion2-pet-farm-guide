@@ -1,5 +1,7 @@
 overlay/ui/
+/target/
 overlay/src-tauri/target/
+/farm-guide/
 overlay/src-tauri/gen/
 release/
 keys/

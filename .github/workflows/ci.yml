@@ -6,7 +6,9 @@ on:
   pull_request:
 
 # Read only: nothing here writes to the repository, and no job holds a secret.
-# Releases are still built and signed by hand (tools/make_release.py).
+# Players get the guide from Flav-Toolkit's Get add-ons: Flav-Toolkit's CI builds it from a pinned
+# commit of this repository exactly as the Windows job below does (tools/store_build.py, then
+# `cargo build --release --locked -p farm-guide-overlay` at the root).
 permissions:
   contents: read
 
@@ -31,13 +33,6 @@ jobs:
           python3 -m playwright install --with-deps chromium
           FG_NO_ART=1 python3 overlay/assemble.py
           python3 tests/overlay/test_overlay.py
-      - name: The installer script compiles (with a stand-in payload)
-        run: |
-          sudo apt-get install -y -qq nsis >/dev/null
-          mkdir -p "$RUNNER_TEMP/payload/farm-guide"
-          cp plugin/farm-guide/manifest.json "$RUNNER_TEMP/payload/farm-guide/"
-          printf MZ > "$RUNNER_TEMP/payload/Farm Guide Overlay.exe"
-          makensis -V2 -DVERSION=0.0.0 -DOVERLAY_VERSION=0.0.0 "-DPAYLOAD=$RUNNER_TEMP/payload" "-DART=$PWD/installer/art" "-DOUTFILE=$RUNNER_TEMP/setup.exe" "$PWD/installer/setup.nsi"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10
         with:
           toolchain: stable
@@ -60,21 +55,19 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          workspaces: overlay/src-tauri
-      - name: Assemble the page (the game's images and map tiles are not in git)
+          workspaces: "."
+      - name: Get ready as Flav-Toolkit's packager does (the game's images are left out here)
         shell: bash
         env:
           FG_NO_ART: "1"
-        run: python overlay/assemble.py
+        run: python tools/store_build.py
       - name: Lint
-        working-directory: overlay/src-tauri
-        run: cargo clippy --locked --release -- -D warnings
-      - name: Build
-        working-directory: overlay/src-tauri
-        run: cargo build --locked --release
+        run: cargo clippy --locked --release -p farm-guide-overlay -- -D warnings
+      - name: Build, as Flav-Toolkit's packager does
+        run: cargo build --locked --release -p farm-guide-overlay
       - name: Keep the exe (no images, for checking only, not for players)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: farm-guide-overlay-windows
-          path: overlay/src-tauri/target/release/farm-guide-overlay.exe
+          path: target/release/farm-guide-overlay.exe
           retention-days: 14

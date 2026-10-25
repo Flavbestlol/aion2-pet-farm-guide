@@ -1,4 +1,4 @@
-AION 2 PET FARM GUIDE · OVERLAY 1.21.0
+AION 2 PET FARM GUIDE · OVERLAY 1.22.0
 ======================================
 
 The Farm Guide drawn straight over AION 2: no window, no box, no background you didn't choose.
@@ -21,25 +21,17 @@ HOW IT WORKS
     writes its own files, and (with A2 Tools) watches for Ctrl+Alt+L.
 
 START
-  Easiest: run Farm-Guide-Setup from the Releases page instead. It installs the plugin and this
-  overlay, links the guide to Flav-Toolkit's hub, and adds the plugin to A2 Tools if you have it.
-  With Flav-Toolkit, use the setup. This folder is for installing by hand with A2 Tools (load the
-  plugin zip's farm-guide folder there).
-  Double-click "Farm Guide Overlay.exe". (First time, Windows may say "Windows protected your
-  PC": More info > Run anyway. The app isn't code-signed.)
-  The first time, it asks whether to start with Windows. Nothing starts with Windows unless you
-  say yes (Settings > Overlay > Start with Windows to change it). It stays invisible until AION 2
-  is running, and hides while you're in another window (Settings > Show).
-  If you move this folder and start with Windows is on, run the .exe once from its new place.
-  The game must run in Borderless / Windowed mode.
+  Pet Farm Guide is a Flav-Toolkit add-on: Flav-Toolkit installs it (hub > Get add-ons), starts it
+  and stops it. Turn on "Start with Flav-Toolkit" on the guide's page in the hub so the overlay runs
+  while you play: it stays invisible until AION 2 is running, and hides while you're in another
+  window (Settings > Show). The game must run in Borderless / Windowed mode.
+  A2 Tools as the backup reader: load this folder's farm-guide folder in A2 Tools (Settings >
+  Plugins > Plugin developer mode > Load plugin folder...).
 
 UPDATES
-  Settings > Overlay > Updates: Ask first (the default), Automatic, or Off. Also: tray icon >
-  Check for updates. Updates come from github.com/Flavbestlol/aion2-pet-farm-guide (Releases) and
-  are installed only if they carry the publisher's signature and every file matches it. The plugin
-  is updated too, where it is installed: Flav-Toolkit picks up the new decoders by itself (the
-  hub's Rescan, or its next start); with A2 Tools, click Check for updates there (Settings >
-  Plugins). Checking sends nothing about you: it's a download.
+  From Flav-Toolkit: its hub tells you when a new version is out (Get add-ons, the dock, a toast)
+  and installs it, checked against its signed catalogue. Repair puts back a missing or changed
+  file; Roll back returns to the version before. The overlay itself reaches no network.
 
 USE
   - Click the tip: the guide opens. The fold button (top right of the guide) closes it again.
@@ -80,15 +72,15 @@ SMART
     to resize it; double-click the grip for the default size.
   - Settings tab: theme (HUD / Apple / In-game / Classic), size, background (0 = fully clear), and more.
   - Tray icon (next to the clock): open the guide, lock, put the tip back, move to the next
-    screen, check for updates, close the overlay.
+    screen, close the overlay.
   - An orange dot on the tip = nothing is being recorded, and the guide says why: Flav-Toolkit
     isn't reading the game (the guide shows Flav-Toolkit's own reason), or, with A2 Tools, the
     Farm Guide plugin isn't running there (A2 Tools > Settings > Plugins > Open).
 
 FILES
-  Your overlay settings and records:  %APPDATA%\app.farmguide.overlay
+  Your overlay settings and records:  %APPDATA%\app.farmguide.overlay (kept when Flav-Toolkit
+                                       updates or removes the guide)
   The plugin's records (A2 Tools):     %APPDATA%\com.a2tools.dps-meter\plugin-data\farm-guide
-  The link Flav-Toolkit's hub reads:   %APPDATA%\com.flavbest.flav-toolkit\addon-links\pet-farm-guide.json
 
 Data: MetaBot.GG (metabot.gg/en/aion-2) and the A2 Tools Pet Soul Tracker.
 Island Windstreams, Abyss bases, bosses and unconfirmed sources: Th3Ruthless,

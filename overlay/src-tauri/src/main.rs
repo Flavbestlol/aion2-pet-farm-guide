@@ -9,10 +9,9 @@
 mod a2;
 mod feed;
 mod feed_core;
+mod handover;
 mod install;
 mod install_core;
-mod update;
-mod update_core;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -123,9 +122,11 @@ fn set_showing(state: tauri::State<State>, on: bool) {
     state.showing.store(on, Ordering::SeqCst);
 }
 
-/// Start with Windows (read or set).
+/// Start with Windows (read or set). Never for a copy Flav-Toolkit installed: Flav-Toolkit starts it
+/// (and the entry an older copy left goes, so two overlays never race at sign-in).
 #[tauri::command]
 fn autostart(on: Option<bool>) -> bool {
+    let on = if install::store_installed() { Some(false) } else { on };
     #[cfg(windows)]
     {
         if let Some(on) = on {
@@ -387,7 +388,7 @@ mod win {
 /// A2 Tools' own click-through lock, from its settings file (None if it can't be read).
 fn main() {
     // the installer's commands (see setup.rs) run and exit before anything else
-    if let Some(code) = update::cli().or_else(install::cli).or_else(a2::setup::cli) {
+    if let Some(code) = handover::cli().or_else(install::cli).or_else(a2::setup::cli) {
         std::process::exit(code);
     }
     #[cfg(windows)]
@@ -396,7 +397,7 @@ fn main() {
     }
     install::sync_installed_version();
     install::sync_addon();
-    update::tidy_after_update();
+    handover::tidy_after_update();
     let plugin_dir = a2::plugin_dir();
     let own_dir = install::own_dir();
     let _ = std::fs::create_dir_all(&own_dir);
@@ -414,7 +415,7 @@ fn main() {
             showing: AtomicBool::new(true),
         })
         .manage(feed::FeedState(Mutex::new(serde_json::json!({ "feed": false }))))
-        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
+        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, install::install_kind, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);
@@ -453,10 +454,9 @@ fn main() {
             let lock = MenuItem::with_id(app, "lock", "Lock / unlock (Ctrl+Alt+L)", true, None::<&str>)?;
             let reset = MenuItem::with_id(app, "reset", "Put the tip back in place", true, None::<&str>)?;
             let screen = MenuItem::with_id(app, "screen", "Move to the next screen", true, None::<&str>)?;
-            let upd = MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Close the overlay", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&open, &lock, &reset, &screen, &upd, &sep, &quit_i])?;
+            let menu = Menu::with_items(app, &[&open, &lock, &reset, &screen, &sep, &quit_i])?;
             let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Farm Guide Overlay");
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());

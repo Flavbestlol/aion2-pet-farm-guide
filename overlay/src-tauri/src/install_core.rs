@@ -1,7 +1,7 @@
 //! What the overlay writes for Flav-Toolkit beside itself and in Flav-Toolkit's folder, with no
 //! window and no files (pure), so tests/install_core runs it as it is.
 //!
-//! - `addon.json` (ADDONS.md section 3): the template in the repository (overlay/addon.json), with
+//! - `addon.json` (ADDONS.md section 3): the template in the repository (addon.json at its root), with
 //!   the version of the plugin beside it, which is the release's (an update of the plugin moves it).
 //! - The link (`addon-links\pet-farm-guide.json`): `{"dir": "<the folder of addon.json>"}`, how the
 //!   hub finds a copy its own installer placed.
