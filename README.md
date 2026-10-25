@@ -38,7 +38,7 @@ The guide needs something that reads the game for it. **Flav-Toolkit is the main
 
 | Reads the game | How the guide works with it |
 |---|---|
-| **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw. The overlay keeps your progress. |
+| **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw: click it to open the guide, click again to put it away (Flav-Toolkit 0.12 or later). The overlay keeps your progress. |
 | **[A2 Tools DPS Meter](https://a2tools.app)** (backup) | Load the plugin Flav-Toolkit installed in the meter (see [Install](#install)): it reads the same things and keeps your progress; the overlay shows it over the game. |
 
 When both run, the guide reads from Flav-Toolkit and A2 Tools only stands by; if Flav-Toolkit stops, the guide carries on from A2 Tools by itself. *Settings › Overlay › Game records* says which one it uses.

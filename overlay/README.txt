@@ -1,4 +1,4 @@
-AION 2 PET FARM GUIDE · OVERLAY 1.22.1
+AION 2 PET FARM GUIDE · OVERLAY 1.22.2
 ======================================
 
 The Farm Guide drawn straight over AION 2: no window, no box, no background you didn't choose.
@@ -27,6 +27,8 @@ START
   window (Settings > Show). The game must run in Borderless / Windowed mode.
   A2 Tools as the backup reader: load this folder's farm-guide folder in A2 Tools (Settings >
   Plugins > Plugin developer mode > Load plugin folder...).
+  The paw in Flav-Toolkit's dock opens the guide; click it again to put the guide away (tip and
+  all) until the next click, the hub's Open or the tray's Open the guide.
 
 UPDATES
   From Flav-Toolkit: its hub tells you when a new version is out (Get add-ons, the dock, a toast)

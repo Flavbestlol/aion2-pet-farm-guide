@@ -17,8 +17,13 @@ pub fn config(addon_json: Option<&str>) -> Config {
         .and_then(|t| serde_json::from_str::<Value>(t.trim_start_matches('\u{feff}')).ok())
         .and_then(|m| m.get("version").and_then(Value::as_str).map(String::from))
         .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
-    Config::new(ADDON_ID, &version, &TYPES)
+    // `toggle` (core 0.12.0): the dock's icon shows the guide, and a second click hides it. An older
+    // core ignores the field and sends `open`, as before.
+    Config::new(ADDON_ID, &version, &TYPES).features(&FEATURES)
 }
+
+/// What we understand beyond events (`hello`'s `features`).
+pub const FEATURES: [&str; 1] = ["toggle"];
 
 /// What a message from the core becomes for the page: an event name and its payload (`None`:
 /// nothing to pass on).
@@ -28,6 +33,12 @@ pub fn to_page(m: Message) -> Option<(&'static str, Value)> {
         // a newer core's event: the page skips what it doesn't know
         Message::Unknown(v) => Some(("feed", v)),
         Message::Status(s) => serde_json::to_value(&s).ok().map(|v| ("feed-status", v)),
-        Message::Show(what) => Some(("show", Value::from(if what == Show::Settings { "settings" } else { "open" }))),
+        Message::Show(what) => Some(("show", Value::from(match what {
+            Show::Settings => "settings",
+            Show::Toggle => "toggle",
+            _ => "open",
+        }))),
+        // what we didn't ask for (the lock, keys, layout): nothing for the page
+        _ => None,
     }
 }
