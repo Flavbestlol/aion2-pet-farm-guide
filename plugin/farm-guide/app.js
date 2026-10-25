@@ -2716,13 +2716,29 @@
     const seen = new Set(Array.isArray(prefs.tourSeen) ? prefs.tourSeen : []);
     return TOUR.filter((s) => !seen.has(s.id) && (!s.host || HOST));
   };
+  // Really on screen: laid out, and neither it nor anything around it hidden or faded out. The
+  // overlay hides the whole guide while the game isn't in front, and its boxes keep their size,
+  // so a width alone would let a tip point at a button nobody can see.
+  function onScreen(e) {
+    if (!e) return false;
+    const r = e.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return false;
+    if (e.checkVisibility) return e.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    for (let n = e; n && n.nodeType === 1; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) return false;
+    }
+    return true;
+  }
+  // the guide itself is up: shown by the overlay (the game in front), and on screen
+  const guideShown = () => (!HOST || !HOST.isShown || HOST.isShown()) && onScreen($("#app"));
   // a moment after the guide is open and showing a stop, if there's anything new to show
   function maybeTour() {
     clearTimeout(tourTimer);
     if (tourOn || prefs.tourOff || (navigator.webdriver && !window.__forceTour)) return;
     tourTimer = setTimeout(() => {
-      if (tourOn || prefs.tourOff || isFolded() || editing || tab !== "guide" || !getModel() || slOpen) return;
-      const steps = tourSteps().filter((s) => { const e = $(s.el); return e && e.getBoundingClientRect().width > 0; });
+      if (tourOn || prefs.tourOff || isFolded() || editing || tab !== "guide" || !getModel() || slOpen || !guideShown()) return;
+      const steps = tourSteps().filter((s) => onScreen($(s.el)));
       if (!steps.length) return;
       const fresh = steps.length === TOUR.filter((s) => !s.host || HOST).length || !(prefs.tourSeen || []).length;
       startTour(steps, fresh);
@@ -2755,7 +2771,7 @@
   }
   function showTourStep() {
     const T = tourOn, step = T.steps[T.i], target = $(step.el);
-    if (!target || !target.getBoundingClientRect().width) { if (T.i < T.steps.length - 1) { T.i++; return showTourStep(); } return endTour(true); }
+    if (!onScreen(target)) { if (T.i < T.steps.length - 1) { T.i++; return showTourStep(); } return endTour(true); }
     const card = tourEls.card, ring = tourEls.ring;
     card.replaceChildren();
     const last = T.i === T.steps.length - 1;
@@ -2791,6 +2807,8 @@
   }
   addEventListener("resize", () => { if (tourOn) showTourStep(); });
   window.FG_tourOpen = () => !!tourOn;
+  // the overlay shows the guide again (the game came to the front): a tip that waited may show now
+  window.FG_retryTour = () => { if (!tourOn) maybeTour(); };
 
   function applyPrefs() {
     // the map's own fold button is gone (edit mode hides the map): a folded map is a hidden one

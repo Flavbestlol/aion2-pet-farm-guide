@@ -41,7 +41,7 @@ def pets_list(D_ids, level=0, points=0):
     return {"levels": [{"pet": int(i), "level": level} for i in D_ids], "points": [{"pet": int(i), "points": points} for i in D_ids]}
 
 
-def boot(browser, files=None, source=None, kind=None):
+def boot(browser, files=None, source=None, kind=None, game=None, tour=False):
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.on("console", lambda m: errors.append(f"{m.type}: {m.text}") if m.type == "error" and "Failed to load resource" not in m.text else None)
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
@@ -50,6 +50,10 @@ def boot(browser, files=None, source=None, kind=None):
         init += "window.__source=" + json.dumps(source) + ";"
     if kind is not None:
         init += "window.__kind=" + json.dumps(kind) + ";"
+    if game is not None:
+        init += "window.__game=" + json.dumps(game) + ";"
+    if tour:
+        init += "window.__forceTour=true;"
     page.add_init_script(init + FAKE)
     page.goto(URL)
     page.wait_for_function("() => typeof window.FG_key === 'function'", timeout=15000)
@@ -257,6 +261,28 @@ with sync_playwright() as p:
     check("setup copy: not told again at the next start", title(page) == "", title(page))
     text = settings_text(page)
     check("setup copy: Settings say it gets no more updates, and how to move", "None for this copy" in text)
+    page.close()
+
+    # ── the tour waits for the guide to be on screen (CORE, 2026-10-25: a tip around a lone button
+    # while the game wasn't in front) ──
+    tour_ids = ["route", "size", "list", "lock", "edit", "grip", "fold"]  # every tip but "options"
+    prefs = {"folded": False, "tourSeen": tour_ids, "ovV": 2, "theme": "hud", "ovAutostartAsked": True, "ovMoveTold": True}
+    saved = {"levels": {ids[0]: 2}, "points": {ids[0]: 5}, "syncedAt": int(time.time() * 1000) - 3600_000}
+    files = {"own": {"prefs": json.dumps(prefs)}, "plugin": {"pets-server-1012": json.dumps(saved), "last": json.dumps("server-1012")}}
+    tour_up = lambda page: page.evaluate("() => !!document.querySelector('.tourcard.in') && getComputedStyle(document.querySelector('.tourcard')).visibility === 'visible'")
+    page = boot(browser, files, kind="store", game=[False, False], tour=True)
+    page.wait_for_timeout(3000)
+    check("tour: the guide has a stop to show", bool(page.evaluate("() => !!FG_model()")))
+    check("tour: no tip while the game isn't in front (the guide is hidden)", not tour_up(page))
+    check("tour: it doesn't even start then (nothing marked seen behind a hidden guide)", not page.evaluate("() => FG_tourOpen()"))
+    page.evaluate("() => window.__emitHost('game', [true, true])")
+    page.wait_for_timeout(3000)
+    check("tour: the tip shows once the guide does", tour_up(page))
+    on = page.evaluate("() => { const e = document.querySelector('.editbtn'); return e && e.checkVisibility({ opacityProperty: true, visibilityProperty: true }); }")
+    check("tour: and its ring is around a button you can see", bool(on))
+    page.evaluate("() => window.__emitHost('game', [false, false])")
+    page.wait_for_timeout(600)
+    check("tour: the tip hides with the guide when the game leaves", not page.evaluate("() => getComputedStyle(document.querySelector('.tourcard')).visibility === 'visible'"))
     page.close()
 
     browser.close()
