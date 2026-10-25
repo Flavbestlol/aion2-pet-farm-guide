@@ -3,10 +3,13 @@
 // from A2 Tools (window.a2's "decoded:…" and "character"), so the same guide code runs either way.
 //  - Flav-Toolkit runs the plugin's own decoders (addon.json "decoders"): the data is A2 Tools'.
 //  - Who you are comes from my_server and my_profile, not on each event as in A2 Tools.
-//  - At login the pet list can come a moment before my_server: it waits for it (up to 600 ms), as
-//    A2 Tools does, so the list is filed under the right server.
+//  - At login the pet list can come a moment before my_server: it waits for it (up to 1.5 s), as
+//    A2 Tools does, so the list is filed under the right server. If my_server is later still, the
+//    list goes in as "server unknown" and moves to its server when my_server comes (the guide's
+//    own hand-over), never under the server played before.
+//  - A recording Flav-Toolkit plays (status "replay") is not recorded into your progress.
 //  - Flav-Toolkit hands the last pet list again on every reconnect: only a list newer than our
-//    counts is applied (records.js).
+//    counts (and than anything handed on since) is applied (records.js).
 //  - While it's the source, the overlay records the counts itself (host.js keeps them).
 (function () {
   "use strict";
@@ -15,9 +18,16 @@
   const { invoke, listen, fire } = OV;
   const $ = (s) => document.querySelector(s);
 
+  const HOLD_MS = 1500;
   let state = { feed: false }, status = null;
   let server = 0, profile = null, told = "";
   let hold = null, chain = Promise.resolve();
+  // the newest event handed on, per server key: a list no newer than this is the same one again
+  const seen = {};
+  // the pickups and level-ups handed on lately, so A2 Tools' copy of the same one isn't counted
+  // again when the source changes back (source-a2.js looks here)
+  OV.recentFeed = [];
+  const replaying = () => !!(status && status.source === "replay");
 
   const character = () => (server ? { serverId: server, name: (profile && profile.name) || "", level: (profile && Number(profile.level)) || 0 } : null);
   function sendCharacter() {
@@ -26,29 +36,41 @@
     if (c && k !== told && OV.active === "feed") { told = k; fire("character", c); }
   }
 
-  async function deliver(e) {
+  async function deliver(e, c = character()) {
     const ev = `decoded:${e.decoder}`;
-    const c = character();
+    const key = c ? `server-${c.serverId}` : "server-unknown";
+    const at = Number(e.at_ms) || 0;
     if (ev === "decoded:pet-list") {
-      const key = c ? `server-${c.serverId}` : "server-unknown";
+      if (at && at <= (seen[key] || 0)) return; // handed on already, or older than what came since
       const saved = await OV.records.get(`pets-${key}`).catch(() => null);
-      if (R.staleList(e.at_ms, saved)) return; // the same list again, or older than the souls since
+      if (R.staleList(at, saved)) return; // the same list again, or older than the souls since
+    }
+    seen[key] = Math.max(seen[key] || 0, at);
+    if (ev === "decoded:soul-gained" || ev === "decoded:level-up") {
+      const now = Date.now();
+      OV.recentFeed = OV.recentFeed.filter((r) => now - r.when < 10000);
+      OV.recentFeed.push({ ev, sig: JSON.stringify(e.data), at, when: now });
     }
     fire(ev, e.data, { character: c, at: e.at_ms });
   }
-  function release() {
+  // the hold ends: with my_server, everything goes to its server; on the timer, the list (and
+  // what came after it) goes in as "server unknown", and the next my_server hands it over
+  function release(withServer) {
     if (!hold) return;
     clearTimeout(hold.timer);
     const q = hold.queue;
     hold = null;
-    for (const e of q) chain = chain.then(() => deliver(e)).catch(console.error);
+    const c = withServer ? character() : null;
+    if (!withServer) told = ""; // the next my_server, even the same one, says who you are again
+    for (const e of q) chain = chain.then(() => deliver(e, c)).catch(console.error);
   }
   function onEvent(e) {
     if (!e || typeof e.type !== "string") return;
+    if (replaying()) return; // a recording isn't your play
     if (e.type === "my_server") {
       server = R.validServer(e.server);
       sendCharacter();
-      release();
+      release(true);
       return;
     }
     if (e.type === "my_profile") {
@@ -59,7 +81,7 @@
     if (e.type !== "decoded" || e.plugin !== "farm-guide" || OV.active !== "feed") return;
     if (hold) { hold.queue.push(e); return; }
     if (e.decoder === "pet-list" && R.isLive(e.at_ms)) {
-      hold = { queue: [e], timer: setTimeout(release, 600) };
+      hold = { queue: [e], timer: setTimeout(() => release(false), HOLD_MS) };
       return;
     }
     chain = chain.then(() => deliver(e)).catch(console.error);
@@ -68,13 +90,13 @@
   // ── is anything being recorded? Flav-Toolkit says, every 2 s ──
   function showStatus() {
     if (OV.active !== "feed") return;
-    const ok = !!(status && status.capturing);
+    const ok = !!(status && status.capturing) && !replaying();
     const n = $(".ovnotice");
     if (n) {
       n.replaceChildren();
       const b = document.createElement("b");
       b.textContent = "Nothing is being recorded.";
-      n.append(b, ` Flav-Toolkit: ${(status && status.text) || "not reading the game"}.`);
+      n.append(b, replaying() ? " Flav-Toolkit is playing a recording, not your game." : ` Flav-Toolkit: ${(status && status.text) || "not reading the game"}.`);
       n.hidden = ok;
     }
     document.body.classList.toggle("noplugin", !ok);

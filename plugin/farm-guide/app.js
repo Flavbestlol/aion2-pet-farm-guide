@@ -51,6 +51,9 @@
     // per-part options: directions "full" | "short" (the teleport only), the loot strip "all" |
     // "rare" (rare and up), finished monsters in the list shown or not
     travelText: "full", lootMin: "all", qDone: true,
+    // the monster's level bar and kills line, the map's see-through level, at most N monsters in
+    // the list (0: all), a slim one-line header
+    showLv: true, showKills: true, mapAlpha: 1, qMax: 0, slimHead: false,
     // the tour: the tips you've seen (by id), or none ever again
     tourSeen: [], tourOff: false,
   };
@@ -402,6 +405,14 @@
     if (has) els.travel.classList.toggle("going", travelling(m));
     els.emptyGuide.hidden = has;
     if (has && !tourOn) maybeTour();
+    // a part set to show only on the way there, or only while farming (never while you edit it)
+    if (has && HOST) {
+      const way = travelling(m);
+      for (const b of EDIT_PARTS) {
+        const el = partEl(b), w = peek(b).when;
+        if (el) el.classList.toggle("ewhen", !editing && ((w === "way" && !way) || (w === "farm" && way)));
+      }
+    }
     if (!has) {
       const rest = pets.syncedAt ? offRoute() : [];
       els.emptyGuide.replaceChildren(h("b", "", !pets.syncedAt ? "Waiting for your pets" : rest.length ? "Route done" : "All done"),
@@ -710,6 +721,18 @@
       if (home) el.title += ` · also in ${mapLabel(E.ownMap(st))}`;
       return el;
     });
+    // at most N monsters: the first N, and always the one you're farming
+    const max = Number(prefs.qMax) || 0;
+    const listed = order.filter((el) => !(el.classList.contains("fin") && prefs.qDone === false));
+    let keepN = new Set(listed);
+    if (max > 0 && listed.length > max) {
+      const now = listed.find((el) => el.classList.contains("now"));
+      const first = listed.slice(0, max);
+      if (now && !first.includes(now)) first[max - 1] = now;
+      keepN = new Set(first);
+    }
+    for (const el of order) el.classList.toggle("over", listed.includes(el) && !keepN.has(el));
+    els.qwrap.dataset.more = listed.length > keepN.size ? `+${listed.length - keepN.size}` : "";
     const keep = new Set(order);
     // pets that left: pop out, then their cell goes (no empty gap)
     for (const [pid, el] of qEls) {
@@ -1849,6 +1872,8 @@
       row("Map in compact", "Show the map in the compact guide too", toggle("compactMap", () => { applyView(); render(); }));
       row("Monster list", "Rings, or bars that fill up. Or the small button at the end of the list", seg("qStyle", [["ring", "Rings"], ["bar", "Bars"]], applyQStyle));
       row("Finished monsters", "In the monster list, once their pet is done", seg("qDone", [[true, "Show"], [false, "Hide"]], applyQStyle));
+      row("Monsters shown", "At most this many in the list (the one you farm always shows)", seg("qMax", [[0, "All"], [3, "3"], [5, "5"], [8, "8"]], () => render()));
+      row("Header", "Slim: one line, the stop and zone", seg("slimHead", [[false, "Normal"], [true, "Slim"]], applyPartOpts));
       row("Directions", "The full route (where to walk, the farming loop), or just the teleport", seg("travelText", [["full", "Full route"], ["short", "Teleport only"]], () => render()));
       if (HOST) {
         const lb = h("div", "btnrow");
@@ -2084,7 +2109,17 @@
   // The small button at the end of the list switches. The cells glide from the row into the stack
   // (or back), the list's height glides with them, and the bars fill up from empty.
   const kOf = (el) => (el.getBoundingClientRect().width / (el.offsetWidth || 1)) || 1; // screen px per CSS px
+  // the part options that are just a look: one place applies them all
+  function applyPartOpts() {
+    const cls = document.body.classList;
+    cls.toggle("nolv", prefs.showLv === false);
+    cls.toggle("nokills", prefs.showKills === false);
+    cls.toggle("slimhead", !!prefs.slimHead);
+    const a = Number(prefs.mapAlpha) || 1;
+    if (a < 1) els.mapwrap.style.setProperty("--malpha", String(a)); else els.mapwrap.style.removeProperty("--malpha");
+  }
   function applyQStyle() {
+    applyPartOpts();
     const bars = prefs.qStyle === "bar";
     els.qwrap.classList.toggle("nodone", prefs.qDone === false);
     els.qwrap.classList.toggle("bars", bars);
@@ -2173,8 +2208,8 @@
   // over a part to make it bigger or smaller; click it for its options; double-click to put it back.
   // Each size (compact, full) has its own layout.
   const EDIT_PARTS = ["focus", "travel", "queue", "map", "loot"];
-  const PART_NAME = { focus: "Monster", travel: "Directions", queue: "Monster list", map: "Map", loot: "Also drops" };
-  const partEl = (b) => $(`[data-edit="${b}"]`);
+  const PART_NAME = { focus: "Monster", travel: "Directions", queue: "Monster list", map: "Map", loot: "Also drops", header: "Header" };
+  const partEl = (b) => (b === "header" ? els.top : $(`[data-edit="${b}"]`));
   let editing = false, picked = null;
   const viewKey = () => (isCompact() ? "compact" : "full");
   function lay(b, view = viewKey()) {
@@ -2528,6 +2563,17 @@
   addEventListener("pointerup", endPartDrag);
   addEventListener("pointercancel", endPartDrag);
   addEventListener("blur", () => { if (eDrag) endPartDrag(); });
+  // the header in edit mode: a click (not a drag, that moves the guide) opens its options
+  let hdDown = null;
+  document.addEventListener("pointerdown", (e) => { hdDown = editing && e.target.closest && e.target.closest(".top") && !e.target.closest("button") ? [e.clientX, e.clientY] : null; }, true);
+  document.addEventListener("click", (e) => {
+    if (!editing || !hdDown || !e.target.closest || !e.target.closest(".top") || e.target.closest("button")) return;
+    const moved = Math.hypot(e.clientX - hdDown[0], e.clientY - hdDown[1]) > 5;
+    hdDown = null;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!moved) openPop("header");
+  }, true);
   document.addEventListener("dblclick", (e) => {
     if (!editing) return;
     const el = e.target.closest && e.target.closest("[data-edit]");
@@ -2590,29 +2636,42 @@
       }
       return s;
     };
+    if (b === "header") {
+      // the header isn't moved (dragging it moves the guide): it has a style
+      row("Style", seg([[false, "Normal"], [true, "Slim"]], !!prefs.slimHead, (v) => { prefs.slimHead = v; applyPartOpts(); if (HOST && HOST.onFold) HOST.onFold(false); }));
+      pop.append(h("div", "ep-note", "Slim: one line, the stop and zone. Messages show in its place for a moment."));
+      placePop();
+      return;
+    }
     row("Size", step(b === "map" ? `${sizeOf("map")}px` : `${Math.round(sizeOf(b) * 100)}%`, () => resizePart(b, -1), () => resizePart(b, 1)));
+    // any part: always, only on the way to a stop, or only while you farm there
+    row("Shows", seg([["", "Always"], ["way", "On the way"], ["farm", "Farming"]], L.when || "", (v) => { const P = lay(b); if (v) P.when = v; else delete P.when; render(); }));
     if (b === "focus") {
+      row("Level bar", seg([[true, "Show"], [false, "Hide"]], prefs.showLv !== false, (v) => { prefs.showLv = v; applyPartOpts(); }));
+      row("Kills line", seg([[true, "Show"], [false, "Hide"]], prefs.showKills !== false, (v) => { prefs.showKills = v; applyPartOpts(); }));
       const pic = (v) => { const P = lay("focus"); P.pic = Math.round(Math.max(0.6, Math.min(1.6, (P.pic || 1) + v)) * 100) / 100; if (P.pic === 1) delete P.pic; savePrefs(); applyLayout(); fillPop(); if (HOST && HOST.onFold) HOST.onFold(false); };
       row("Picture", step(`${Math.round((L.pic || 1) * 100)}%`, () => pic(-0.1), () => pic(0.1)));
     }
     if (b === "queue") {
       row("Style", seg([["ring", "Rings"], ["bar", "Bars"]], prefs.qStyle === "bar" ? "bar" : "ring", setQStyle));
-      row("Finished ones", seg([[true, "Show"], [false, "Hide"]], prefs.qDone !== false, (v) => { prefs.qDone = v; applyQStyle(); }));
+      row("Finished ones", seg([[true, "Show"], [false, "Hide"]], prefs.qDone !== false, (v) => { prefs.qDone = v; applyQStyle(); render(); }));
+      row("At most", seg([[0, "All"], [3, "3"], [5, "5"], [8, "8"]], Number(prefs.qMax) || 0, (v) => { prefs.qMax = v; render(); }));
     }
-    if (b === "travel") row("Shows", seg([["full", "Full route"], ["short", "Teleport only"]], prefs.travelText === "short" ? "short" : "full", (v) => { prefs.travelText = v; render(); }));
-    if (b === "loot") row("Shows", seg([["all", "All"], ["rare", "Rare and up"]], prefs.lootMin === "rare" ? "rare" : "all", (v) => { prefs.lootMin = v; lootKey = ""; render(); }));
+    if (b === "travel") row("Text", seg([["full", "Full route"], ["short", "Teleport only"]], prefs.travelText === "short" ? "short" : "full", (v) => { prefs.travelText = v; render(); }));
+    if (b === "loot") row("Drops", seg([["all", "All"], ["rare", "Rare and up"]], prefs.lootMin === "rare" ? "rare" : "all", (v) => { prefs.lootMin = v; lootKey = ""; render(); }));
     if (b === "map") {
       row("Shape", seg([["round", "Round"], ["square", "Square"]], mapShape(), (v) => { prefs.mapShape = v; applyMapFrame(); }));
       row("Farming loop", seg([[true, "On"], [false, "Off"]], prefs.mapLoop !== false, (v) => { prefs.mapLoop = v; applyMapFrame(); model = null; render(); }));
       row("Monster icons", seg([[true, "On"], [false, "Off"]], prefs.mapIcons !== false, (v) => { prefs.mapIcons = v; applyMapFrame(); }));
-      if (!isCompact()) row("Shows", seg([["always", "Always"], ["way", "On the way"]], prefs.mapWhen === "way" ? "way" : "always", (v) => { prefs.mapWhen = v; }));
+      const alpha = (v) => { prefs.mapAlpha = Math.round(Math.max(0.3, Math.min(1, (Number(prefs.mapAlpha) || 1) + v)) * 10) / 10; savePrefs(); applyPartOpts(); fillPop(); };
+      row("See-through", step(`${Math.round((1 - (Number(prefs.mapAlpha) || 1)) * 100)}%`, () => alpha(0.1), () => alpha(-0.1)));
     }
     const foot = h("div", "ep-foot");
     const btn = (text, cls, fn, title) => { const k = h("button", `btn ${cls}`, text); k.type = "button"; if (title) k.title = title; k.addEventListener("click", fn); foot.append(k); };
     if (isMoved(L)) btn("Put back", "", () => { const v = b; closePop(); putBack(v); }, "Back into the guide's column (or double-click it)");
     btn("Reset", "", () => {
       const P = lay(b);
-      for (const k of ["x", "y", "px", "py", "w", "s", "pic"]) delete P[k];
+      for (const k of ["x", "y", "px", "py", "w", "s", "pic", "when"]) delete P[k];
       if (b === "map") prefs.mapSize = null;
       savePrefs();
       relayout();
@@ -2647,6 +2706,7 @@
     { id: "list", el: ".qstyle", t: "Every monster here", b: "Click a monster to farm it first. This button shows them as rings or as bars that fill up." },
     { id: "lock", el: ".lockbtn", t: "Lock it", b: "Locked, every click goes through to the game. Ctrl+Alt+L locks and unlocks." },
     { id: "edit", el: ".editbtn", host: true, t: "Make it yours", b: "Move, resize or hide any part: drag it, scroll over it, or click it for its options. To hide the map, click it here and pick Hide. Presets set up a whole layout in one click." },
+    { id: "options", el: ".editbtn", host: true, t: "Options for every part", b: "In edit mode, click a part for its options: hide the monster's level bar, a see-through map, only the first few monsters, a slim header (click the header), or a part that shows only on the way or only while farming." },
     { id: "grip", el: ".cgrip", host: true, t: "Wider or narrower", b: "Drag this corner. Compact and full share the width." },
     { id: "fold", el: ".foldbtn", t: "Fold it away", b: "Folds the guide into a small tip; click the tip to open it again. Drag the header or the tip anywhere on screen." },
   ];
@@ -3342,7 +3402,12 @@
         if (resync) rebuild();
         render();
       }
-      if (l && Array.isArray(l.log) && l.log.length >= log.length) { log = l.log; levelLog = l.levelLog || levelLog; }
+      // the overlay merges both histories (records.js): a pickup seen by only one of the two stays
+      if (l && Array.isArray(l.log)) {
+        const R = window.FG_RECORDS;
+        const m = R ? R.mergeLogs({ log, levelLog }, l) : l.log.length >= log.length ? l : null;
+        if (m) { log = m.log; levelLog = m.levelLog || levelLog; }
+      }
     };
     window.FG_key = () => key;
     // when the game starts: what your last session gave, and what's left (from your own soul log)
