@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "pet-farm-guide",
+  "name": "Pet Farm Guide",
+  "version": "1.23.0",
+  "author": "Flavbest",
+  "kind": "external",
+  "emblem": "emblem.png",
+  "run": { "exe": "Farm Guide Overlay.exe" },
+  "events": { "version": 1, "types": ["decoded:pet-list", "decoded:soul-gained", "decoded:level-up", "decoded:map-load", "my_server", "my_profile"] },
+  "permissions": { "network": ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"] },
+  "updates": { "github": "Flavbestlol/aion2-pet-farm-guide" },
+  "decoders": { "manifest": "farm-guide/manifest.json", "keep": ["pet-list", "map-load"] }
+}

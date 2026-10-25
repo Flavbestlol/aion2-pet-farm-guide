@@ -2,11 +2,13 @@
 ;
 ; Built by tools/make_release.py:
 ;   makensis -DVERSION=<plugin version> -DOVERLAY_VERSION=<overlay version> -DPAYLOAD=<folder> -DOUTFILE=<exe> setup.nsi
-; PAYLOAD holds "Farm Guide Overlay.exe" and farm-guide\ (the plugin).
+; PAYLOAD holds "Farm Guide Overlay.exe" and farm-guide\ (the plugin). The overlay writes addon.json and
+; emblem.png beside itself (for Flav-Toolkit's hub) when it runs, and --setup-link does it here.
 ;
 ; For you only (no administrator rights): it installs to %LOCALAPPDATA%\Programs, where the overlay
-; can also update itself. The overlay adds the plugin to A2 Tools (Farm Guide Overlay.exe --setup-register,
-; see overlay/src-tauri/src/setup.rs). Nothing starts with Windows unless you tick the box.
+; can also update itself. The guide reads the game from Flav-Toolkit (the hub finds it through a link,
+; --setup-link) or from A2 Tools (the overlay adds the plugin to it: --setup-register, see
+; overlay/src-tauri/src/a2/setup.rs). Nothing starts with Windows unless you tick the box.
 
 Target amd64-unicode   ; 64-bit, like the overlay and the game
 ManifestDPIAware true
@@ -56,11 +58,12 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 !define MUI_COMPONENTSPAGE_NODESC
 
 Var Meter       ; what the plugin step said: 0 done, 1 failed, 2 A2 Tools was open, 3 A2 Tools not installed
+Var Core        ; 1: Flav-Toolkit is on this PC
 Var FinishText
 
 ; ── pages ──
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${NAME}"
-!define MUI_WELCOMEPAGE_TEXT "This sets up the guide on your PC:$\r$\n$\r$\n•  the plugin, added to the A2 Tools DPS Meter for you$\r$\n•  the overlay, which shows the guide over AION 2$\r$\n$\r$\nNo administrator rights needed. Nothing starts with Windows unless you choose it.$\r$\n$\r$\nThe guide runs inside the free A2 Tools DPS Meter (a2tools.app).$\r$\n$\r$\nVersion ${VERSION}. Click Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This sets up the guide on your PC:$\r$\n$\r$\n•  the overlay, which shows the guide over AION 2$\r$\n•  its link to Flav-Toolkit, which reads the game for it$\r$\n•  or the plugin, added to the A2 Tools DPS Meter for you, if you use that$\r$\n$\r$\nNo administrator rights needed. Nothing starts with Windows unless you choose it.$\r$\n$\r$\nVersion ${VERSION}. Click Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 !define MUI_DIRECTORYPAGE_TEXT_TOP "The guide installs here, for your Windows account only. The default is fine for almost everyone."
@@ -78,8 +81,8 @@ Var FinishText
 !define MUI_FINISHPAGE_TEXT "$FinishText"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start the guide now"
-!define MUI_FINISHPAGE_LINK "Get the A2 Tools DPS Meter (a2tools.app)"
-!define MUI_FINISHPAGE_LINK_LOCATION "https://a2tools.app"
+!define MUI_FINISHPAGE_LINK "Get Flav-Toolkit (it reads the game for the guide)"
+!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/Flavbestlol/flav-toolkit/releases/latest"
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishShow
 !insertmacro MUI_PAGE_FINISH
 
@@ -143,6 +146,15 @@ Section "-Finish setting up" SecSetup
     ExecWait '"$INSTDIR\${EXE}" --setup-autostart off'
   ${EndIf}
 
+  ; Flav-Toolkit has run on this PC (it keeps its log in its data folder)
+  StrCpy $Core 0
+  ${If} ${FileExists} "$APPDATA\com.flavbest.flav-toolkit\flav-toolkit.log"
+    StrCpy $Core 1
+  ${EndIf}
+  ; Flav-Toolkit's hub: addon.json and emblem.png here, and a link to this folder in its own
+  ; (written even before Flav-Toolkit is installed, so its hub finds the guide from its first start)
+  ExecWait '"$INSTDIR\${EXE}" --setup-link "$INSTDIR"'
+
   ; ── A2 Tools only (goes with overlay/src-tauri/src/a2 when A2 Tools support is dropped) ──
   ; the plugin, into A2 Tools (it can't be changed while A2 Tools is open)
   retry:
@@ -156,15 +168,19 @@ Section "-Finish setting up" SecSetup
   ${ElseIf} $Meter == 2
     StrCpy $FinishText "The guide is installed.$\r$\n$\r$\nOne step left: close the A2 Tools DPS Meter for a moment while the guide runs. It adds itself to the meter, then start the meter again."
   ${ElseIf} $Meter == 3
-    StrCpy $FinishText "The guide is installed.$\r$\n$\r$\nIt runs inside the free A2 Tools DPS Meter, which isn't on this PC yet. Install the meter and start it once: the guide finishes setting itself up after that."
+  ${AndIf} $Core == 1
+    StrCpy $FinishText "The guide is installed.$\r$\n$\r$\nIt reads the game from Flav-Toolkit: start Flav-Toolkit, then AION 2, and log in to your character (the game sends your pet levels at login). Flav-Toolkit's hub lists the guide."
+  ${ElseIf} $Meter == 3
+    StrCpy $FinishText "The guide is installed.$\r$\n$\r$\nIt reads the game from Flav-Toolkit, which isn't on this PC yet: get it with the link below and start it. (The free A2 Tools DPS Meter works too: the guide adds itself to it once it's installed.)"
   ${Else}
     StrCpy $FinishText "The guide is installed, but it couldn't add itself to the A2 Tools DPS Meter.$\r$\n$\r$\nAdd it by hand: in the meter, Settings › Plugins, turn on Plugin developer mode, click Load plugin folder… and pick:$\r$\n$INSTDIR\farm-guide"
   ${EndIf}
 SectionEnd
 
 Function FinishShow
-  ; the meter's link, only when it isn't installed yet
+  ; Flav-Toolkit's link, only when neither it nor A2 Tools is here
   ${If} $Meter != 3
+  ${OrIf} $Core == 1
     ShowWindow $mui.FinishPage.Link ${SW_HIDE}
   ${EndIf}
 FunctionEnd
@@ -216,19 +232,25 @@ Section "Uninstall"
     ${EndIf}
   ${EndIf}
   DeleteRegValue HKCU "${RUNKEY}" "FarmGuideOverlay"
+  ; Flav-Toolkit's link to this folder (a link to another copy stays)
+  ${If} ${FileExists} "$INSTDIR\${EXE}"
+    ExecWait '"$INSTDIR\${EXE}" --setup-unlink "$INSTDIR"'
+  ${EndIf}
 
   ; only what the setup put there, in case the folder was one of yours
   Delete "$INSTDIR\${EXE}"
   Delete "$INSTDIR\Farm Guide Overlay.new.exe"
   Delete "$INSTDIR\WebView2Loader.dll"
   RMDir /r "$INSTDIR\farm-guide"
+  Delete "$INSTDIR\addon.json"
+  Delete "$INSTDIR\emblem.png"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${NAME}.lnk"
   Delete "$DESKTOP\${NAME}.lnk"
   DeleteRegKey HKCU "${UNKEY}"
 
-  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the overlay's own settings (where you placed it, and your choices)?$\r$\n$\r$\nYour farming progress stays either way: the A2 Tools DPS Meter keeps it." /SD IDNO IDNO keep
+  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete the guide's own folder: where you placed it, your choices, and its copy of your soul history?$\r$\n$\r$\nYour pet levels come back from the game at your next login either way. If you use the A2 Tools DPS Meter, it keeps its own copy of the history." /SD IDNO IDNO keep
     RMDir /r "$APPDATA\app.farmguide.overlay"
     RMDir /r "$LOCALAPPDATA\app.farmguide.overlay"
   keep:

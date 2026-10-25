@@ -36,6 +36,8 @@
       }
       again(3000);
     } else if (s === "nometer") {
+      // no A2 Tools, but Flav-Toolkit is here: nothing to ask (the plugin is added if A2 Tools comes)
+      if (!setupShown && (await invoke("core_installed").catch(() => false))) setupShown = "core";
       if (!setupShown) {
         setupShown = "nometer";
         card({

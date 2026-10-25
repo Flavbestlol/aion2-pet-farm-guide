@@ -25,6 +25,16 @@ use crate::feed_core;
 /// What the page asks for when it loads (it may load after the first `source` event).
 pub struct FeedState(pub Mutex<Value>);
 
+/// Flav-Toolkit has run on this PC (it keeps its log in its data folder; the folder alone may be
+/// only our own link), running or not.
+#[tauri::command]
+pub fn core_installed() -> bool {
+    let dir = std::env::var_os("FLAV_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("APPDATA").map(|a| std::path::PathBuf::from(a).join("com.flavbest.flav-toolkit")));
+    dir.is_some_and(|d| d.join("flav-toolkit.log").is_file())
+}
+
 #[tauri::command]
 pub fn source_state(state: tauri::State<FeedState>) -> Value {
     state.0.lock().unwrap_or_else(|p| p.into_inner()).clone()

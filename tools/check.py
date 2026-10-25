@@ -63,6 +63,25 @@ manifest = json.loads((plugin / "manifest.json").read_text(encoding="utf-8-sig")
 if manifest.get("id") != "farm-guide":
     bad("plugin/farm-guide/manifest.json: the id must stay farm-guide")
 
+# addon.json (Flav-Toolkit's hub): the plugin's version, decoders that exist, the emblem's limits
+addon = json.loads((ROOT / "overlay/addon.json").read_text(encoding="utf-8"))
+if addon.get("version") != manifest.get("version"):
+    bad(f"overlay/addon.json says {addon.get('version')}, the plugin {manifest.get('version')}: keep them the same (the overlay writes the plugin's anyway)")
+dec = addon.get("decoders", {})
+if dec.get("manifest") != "farm-guide/manifest.json":
+    bad("overlay/addon.json: decoders.manifest must be farm-guide/manifest.json (the plugin folder beside the exe)")
+names = {d.get("name") for d in manifest.get("decoders", [])}
+for k in dec.get("keep", []):
+    if k not in names:
+        bad(f"overlay/addon.json keeps {k!r}, which the plugin has no decoder for")
+for k in ("soul-gained", "level-up"):
+    if k in dec.get("keep", []):
+        bad(f"overlay/addon.json must never keep {k!r}: a reconnect would count it twice")
+emblem = (ROOT / "overlay/emblem.png").read_bytes()
+w, h = int.from_bytes(emblem[16:20], "big"), int.from_bytes(emblem[20:24], "big")
+if not emblem.startswith(b"\x89PNG") or (w, h) != (128, 128) or len(emblem) > 64 * 1024:
+    bad(f"overlay/emblem.png must be a 128 x 128 PNG of at most 64 KB ({w} x {h}, {len(emblem)} bytes)")
+
 if problems:
     print("\n".join("✗ " + p for p in problems))
     sys.exit(1)

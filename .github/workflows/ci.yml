@@ -31,6 +31,13 @@ jobs:
           python3 -m playwright install --with-deps chromium
           FG_NO_ART=1 python3 overlay/assemble.py
           python3 tests/overlay/test_overlay.py
+      - name: The installer script compiles (with a stand-in payload)
+        run: |
+          sudo apt-get install -y -qq nsis >/dev/null
+          mkdir -p "$RUNNER_TEMP/payload/farm-guide"
+          cp plugin/farm-guide/manifest.json "$RUNNER_TEMP/payload/farm-guide/"
+          printf MZ > "$RUNNER_TEMP/payload/Farm Guide Overlay.exe"
+          makensis -V2 -DVERSION=0.0.0 -DOVERLAY_VERSION=0.0.0 "-DPAYLOAD=$RUNNER_TEMP/payload" "-DART=$PWD/installer/art" "-DOUTFILE=$RUNNER_TEMP/setup.exe" "$PWD/installer/setup.nsi"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10
         with:
           toolchain: stable
@@ -38,6 +45,7 @@ jobs:
         run: |
           cargo run --quiet --manifest-path tests/setup_core/Cargo.toml
           cargo run --quiet --manifest-path tests/feed_core/Cargo.toml
+          cargo run --quiet --manifest-path tests/install_core/Cargo.toml
 
   overlay:
     name: Overlay (Windows)

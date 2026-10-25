@@ -8,9 +8,12 @@
 //!
 //! The overlay's exe is replaced next to itself: the new one is saved as `<name>.new.exe`, and it
 //! copies itself over the old one once that has exited (see update_restart).
-//! The plugin is updated only where A2 Tools loads it from
-//! a folder (developer mode): its files are rewritten in that folder, which A2 Tools reads from disk.
+//! The plugin is updated where A2 Tools loads it from a folder (developer mode), or else beside the
+//! exe (Flav-Toolkit runs its decoders from there): its files are rewritten in that folder.
 //! A plugin installed from A2 Tools' own reviewed catalog is left to A2 Tools.
+//!
+//! Only GitHub is reached: github.com, then the hosts GitHub hands its release files out from.
+//! A redirect anywhere else is refused (ADDONS.md section 8; addon.json lists the same hosts).
 //!
 //! Nothing is sent anywhere: a check is two plain downloads from GitHub.
 
@@ -28,20 +31,39 @@ const PLUGIN_ID: &str = "farm-guide";
 const MAX_FEED: u64 = 256 * 1024;
 const MAX_EXE: u64 = 64 * 1024 * 1024;
 
+/// The hosts a download may come from (addon.json `permissions.network`).
+const HOSTS: [&str; 3] = ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"];
+
 fn agent() -> ureq::Agent {
     ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(15))
         .timeout(Duration::from_secs(300))
+        // redirects are followed by hand, each one checked against HOSTS
+        .redirects(0)
         .user_agent(concat!("FarmGuideOverlay/", env!("CARGO_PKG_VERSION")))
         .build()
 }
 
 /// A download, at most `max` bytes; `what` names it in the progress events the page shows.
 fn fetch(app: Option<&AppHandle>, what: &str, url: &str, max: u64) -> Result<Vec<u8>, String> {
-    if !url.starts_with("https://") {
-        return Err("only https downloads".into());
-    }
-    let res = agent().get(url).call().map_err(|e| format!("couldn't reach GitHub ({e})"))?;
+    let agent = agent();
+    let mut url = url.to_string();
+    let mut hops = 0;
+    let res = loop {
+        let host = url.strip_prefix("https://").and_then(|r| r.split(['/', '?', '#']).next()).unwrap_or("").to_ascii_lowercase();
+        if !HOSTS.contains(&host.as_str()) {
+            return Err("only https downloads from GitHub".into());
+        }
+        let res = agent.get(&url).call().map_err(|e| format!("couldn't reach GitHub ({e})"))?;
+        if !(300..400).contains(&res.status()) {
+            break res;
+        }
+        hops += 1;
+        url = match res.header("Location") {
+            Some(next) if hops <= 5 => next.to_string(),
+            _ => return Err("GitHub sent the download somewhere unexpected".into()),
+        };
+    };
     let total: u64 = res.header("Content-Length").and_then(|v| v.parse().ok()).unwrap_or(0);
     if total > max {
         return Err("the download is larger than expected".into());
@@ -87,7 +109,7 @@ fn verified_feed() -> Result<Value, String> {
 pub async fn update_check() -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let feed = verified_feed()?;
-        let plugin = crate::a2::plugin_folder().map(|(dir, v)| json!({ "dir": dir.display().to_string(), "version": v }));
+        let plugin = crate::a2::plugin_folder().or_else(crate::install::own_plugin_folder).map(|(dir, v)| json!({ "dir": dir.display().to_string(), "version": v }));
         Ok(json!({ "feed": feed, "overlay": env!("CARGO_PKG_VERSION"), "plugin": plugin }))
     })
     .await
@@ -198,12 +220,13 @@ pub fn tidy_after_update() {
     });
 }
 
-/// The plugin, rewritten in the folder A2 Tools loads it from. Every file is checked first: the zip
+/// The plugin, rewritten in the folder A2 Tools loads it from, or else the one beside the exe (whose
+/// decoders Flav-Toolkit runs). Every file is checked first: the zip
 /// must match the signed checksum, hold Farm Guide's manifest, and only files a plugin may have.
 #[tauri::command]
 pub async fn update_plugin(app: AppHandle) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let (dir, _) = crate::a2::plugin_folder().ok_or("Farm Guide isn't loaded from a folder: A2 Tools updates it")?;
+        let (dir, _) = crate::a2::plugin_folder().or_else(crate::install::own_plugin_folder).ok_or("Farm Guide isn't loaded from a folder: A2 Tools updates it")?;
         let feed = verified_feed()?;
         let p = feed.get("plugin").ok_or("this release has no plugin")?;
         let url = p.get("url").and_then(Value::as_str).ok_or("no download link")?;
