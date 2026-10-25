@@ -1067,3 +1067,27 @@ body.editing .card .travel:not(.going) { display: grid; }
 .tourcard .tc-f .sp { flex: 1; }
 .tourcard .tc-never { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: #9aa1b4; cursor: pointer; }
 .tourcard .tc-never input { accent-color: var(--gold, #f2c35b); margin: 0; }
+
+/* more part options: the monster's level bar and kills line, the map see-through, at most N
+   monsters, a slim header, a part that shows only on the way or only while farming */
+body.nolv .lvline, body.nokills .kills { display: none !important; }
+.mapwrap canvas.tiles { opacity: var(--malpha, 1); }
+.mapwrap[style*="--malpha"] { background: rgba(12, 15, 22, 0.25); }
+.qcell.over { display: none !important; }
+.qwrap .qstyle { order: 2; }
+.qwrap[data-more]:not([data-more=""])::after {
+  content: attr(data-more); order: 1; flex: none; align-self: center; margin: 0 2px; padding: 1px 6px; border-radius: 8px;
+  font: 600 11px/16px var(--num); color: var(--ink-2, #ddd); background: rgba(255, 255, 255, 0.08);
+}
+.qwrap.bars[data-more]:not([data-more=""])::after { align-self: flex-end; margin-bottom: 8px; }
+body.editing .qwrap[data-more]::after { content: none; }
+body #app [data-edit].ewhen { display: none !important; }
+body.slimhead .top { padding-top: 4px; padding-bottom: 4px; }
+body.slimhead .t2:not(.flashing) { display: none; }
+body.slimhead .title:has(.t2.flashing) .t1 { display: none; }
+body.slimhead .t2.flashing { height: 18px; }
+body.slimhead .nav { height: 22px; }
+body.hud.slimhead .top { padding-top: 5px; padding-bottom: 5px; }
+body.editing .top { outline: 1.5px dashed rgba(242, 195, 91, 0.75); outline-offset: 2px; }
+body.editing .top .title { cursor: pointer; }
+.editpop .ep-note { margin-top: 6px; font-size: 11.5px; color: #9aa1b4; }
