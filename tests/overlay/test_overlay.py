@@ -76,8 +76,8 @@ with sync_playwright() as p:
     check("A2 Tools: the not-recording notice says what to do", "A2 Tools" in note, note)
     page.evaluate("() => window.__emitHost('tray', 'quit')")
     page.wait_for_timeout(400)
-    hb = json.loads(page.evaluate("() => window.__files.plugin.overlay"))
-    check("A2 Tools: closing tells the plugin first, then quits", hb["at"] == 0 and page.evaluate("() => !!window.__quit"))
+    order = page.evaluate("""() => window.__calls.map(([c, a]) => c === 'quit' ? 'quit' : c === 'write_file' && a.key === 'overlay' && JSON.parse(a.value).at === 0 ? 'bye' : null).filter(Boolean)""")
+    check("A2 Tools: closing tells the plugin first, then quits", order[:2] == ["bye", "quit"], order)
     page.close()
 
     # the plugin's saved counts are what the overlay starts from
