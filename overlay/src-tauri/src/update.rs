@@ -109,7 +109,11 @@ fn verified_feed() -> Result<Value, String> {
 pub async fn update_check() -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let feed = verified_feed()?;
-        let plugin = crate::a2::plugin_folder().or_else(crate::install::own_plugin_folder).map(|(dir, v)| json!({ "dir": dir.display().to_string(), "version": v }));
+        // where the plugin we'd update is: A2 Tools' folder, or else ours (Flav-Toolkit reads it)
+        let plugin = crate::a2::plugin_folder()
+            .map(|p| (p, "a2"))
+            .or_else(|| crate::install::own_plugin_folder().map(|p| (p, "install")))
+            .map(|((dir, v), from)| json!({ "dir": dir.display().to_string(), "version": v, "from": from }));
         Ok(json!({ "feed": feed, "overlay": env!("CARGO_PKG_VERSION"), "plugin": plugin }))
     })
     .await

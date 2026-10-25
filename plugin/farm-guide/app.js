@@ -3402,7 +3402,12 @@
         if (resync) rebuild();
         render();
       }
-      if (l && Array.isArray(l.log) && l.log.length >= log.length) { log = l.log; levelLog = l.levelLog || levelLog; }
+      // the overlay merges both histories (records.js): a pickup seen by only one of the two stays
+      if (l && Array.isArray(l.log)) {
+        const R = window.FG_RECORDS;
+        const m = R ? R.mergeLogs({ log, levelLog }, l) : l.log.length >= log.length ? l : null;
+        if (m) { log = m.log; levelLog = m.levelLog || levelLog; }
+      }
     };
     window.FG_key = () => key;
     // when the game starts: what your last session gave, and what's left (from your own soul log)
