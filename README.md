@@ -214,7 +214,7 @@ It shows only while AION 2 is the window in front: click into the game. Still no
 <details>
 <summary><b>The guide doesn't react to my clicks</b></summary>
 
-It's locked. Click the padlock (or the tray icon's **Lock / unlock**). With the A2 Tools meter, <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd> works too: it locks the meter and the guide together.
+It's locked. Click the padlock. With the A2 Tools meter, <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd> works too: it locks the meter and the guide together.
 </details>
 
 <details>

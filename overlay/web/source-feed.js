@@ -123,7 +123,7 @@
     // the guide is ready: now the Rust side may connect (what Flav-Toolkit sends at once reaches it)
     start: () => invoke("feed_start").catch(() => {}),
     state: () => state,
-    lockHint: "Locked: clicks go through to the game, except the padlock: click it to unlock. Or the tray icon's Lock",
+    lockHint: "Locked: clicks go through to the game, except the padlock: click it to unlock",
     summary: () => (state.feed ? `Flav-Toolkit ${String(state.core || "").split(" ")[0]}` : state.refused ? `Flav-Toolkit refused: ${state.refused}` : ""),
   };
 

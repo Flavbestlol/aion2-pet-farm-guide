@@ -6,7 +6,8 @@
 - the plugin stays under A2 Tools' 8 MB catalogue limit (its game images are not in git: counted
   only when present);
 - addon.json (what Flav-Toolkit's packager reads, at the root) agrees with the plugin, and the
-  overlay reaches no network.
+  overlay reaches no network;
+- the overlay has no tray icon (Flav-Toolkit's dock and hub open, hide and stop it).
 """
 import json, re, subprocess, sys
 from pathlib import Path
@@ -50,6 +51,10 @@ versions = {
 }
 if len(set(versions.values())) != 1 or None in versions.values():
     bad(f"the overlay's version differs: {versions}")
+
+# no tray icon of its own: Flav-Toolkit's dock and hub are the way in and out
+if "tray-icon" in (tauri / "Cargo.toml").read_text() or "TrayIconBuilder" in (tauri / "src/main.rs").read_text():
+    bad("the overlay has no tray icon (Flav-Toolkit's dock and hub open, hide and stop it): no tray-icon feature, no TrayIconBuilder")
 
 # nothing private
 FORBIDDEN = re.compile(r"(\.key|\.pem|\.p12|\.pfx|\.pcap|\.pcapng|\.etl|\.env)$|(^|/)(captures|recordings|keys|Private)/", re.I)
