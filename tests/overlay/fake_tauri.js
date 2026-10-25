@@ -22,7 +22,7 @@
           return null;
         }
         if (cmd === "autostart") return false;
-        if (cmd === "update_check") return { feed: { overlay: { version: "0.0.1" } }, overlay: "0.0.1", plugin: null };
+        if (cmd === "install_kind") return window.__kind || "hand";
         if (cmd === "plugin_setup") return "none";
         if (cmd === "game_state") return [true, true];
         if (cmd === "source_state") return window.__source || null;

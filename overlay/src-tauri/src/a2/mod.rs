@@ -1,6 +1,6 @@
 //! Everything that is about the A2 Tools DPS Meter, in one place. When the project has its own DPS
 //! meter and A2 Tools support is dropped, this folder goes, with web/source-a2.js, the plugin's
-//! bridge.js and the installer's A2 Tools step (see the A2 Tools lines in installer/setup.nsi).
+//! bridge.js and the A2 Tools step the old installer (up to 1.24.0) ran.
 //!
 //! - The plugin (plugin/farm-guide, inside A2 Tools) writes its records as files under
 //!   %APPDATA%\com.a2tools.dps-meter\plugin-data\farm-guide. We watch its bridge.json and pass each
@@ -14,7 +14,6 @@ pub mod setup_core;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
-use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 const PLUGIN_ID: &str = "farm-guide";
@@ -100,22 +99,3 @@ fn watch_lock(app: AppHandle) {
     }
 }
 
-/// Where A2 Tools loads Farm Guide from a folder (developer mode), and that copy's version.
-pub fn plugin_folder() -> Option<(PathBuf, String)> {
-    let appdata = std::env::var_os("APPDATA").map(PathBuf::from)?;
-    let text = std::fs::read_to_string(appdata.join("com.a2tools.dps-meter").join("settings.json")).ok()?;
-    let settings: Value = serde_json::from_str(&text).ok()?;
-    let folders: Vec<String> = match settings.get("dpsMeter.devPlugins")? {
-        Value::String(s) => serde_json::from_str(s).ok()?,
-        Value::Array(a) => a.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
-        _ => return None,
-    };
-    folders.into_iter().map(PathBuf::from).find_map(|dir| {
-        let m: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).ok()?).ok()?;
-        if m.get("id")?.as_str()? != PLUGIN_ID {
-            return None;
-        }
-        let version = m.get("version")?.as_str()?.to_string();
-        Some((dir, version))
-    })
-}

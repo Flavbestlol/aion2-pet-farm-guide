@@ -178,8 +178,6 @@
     setupCheck,
     shutdown: goodbye,
     lockHint: "Same keys as A2 Tools, and they lock together. Locked: clicks go through to the game, except the padlock: click it to unlock",
-    pluginUpdated: "A2 Tools picks it up when you click Check for updates (Settings › Plugins), or the next time it starts.",
-    pluginUpdatedToo: (v) => `The plugin was updated to ${v} too: in A2 Tools, Settings › Plugins › Check for updates.`,
     settings({ row, seg }) {
       row("A2 Tools window", "While the overlay runs. Hidden: out of the way, still recording. Card: a small recording card. Full: the whole guide", seg("pluginView", [["hidden", "Hidden"], ["card", "Card"], ["full", "Full"]], beat));
     },

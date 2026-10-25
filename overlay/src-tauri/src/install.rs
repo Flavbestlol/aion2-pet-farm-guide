@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use crate::install_core;
 
 /// The repository's addon.json (its version is replaced by the plugin's) and the emblem.
-const ADDON_TEMPLATE: &str = include_str!("../../addon.json");
-const EMBLEM: &[u8] = include_bytes!("../../emblem.png");
+const ADDON_TEMPLATE: &str = include_str!("../../../addon.json");
+const EMBLEM: &[u8] = include_bytes!("../../../emblem.png");
 
 /// The overlay's own folder (%APPDATA%\app.farmguide.overlay): its settings, route and records.
 pub fn own_dir() -> PathBuf {
@@ -91,19 +91,35 @@ pub fn unlink(dir: &Path) {
     }
 }
 
-/// At every start of an installed copy: addon.json, the emblem and the link as this version has them.
-pub fn sync_addon() {
-    if let Some(here) = installed_here() {
-        let _ = link(&here);
+/// Flav-Toolkit's Get add-ons installed this copy (its record, `.flav-install.json`, lies beside the
+/// exe): Flav-Toolkit updates it, repairs it and starts it, so the overlay's own updater and "Start
+/// with Windows" stand down.
+pub fn store_installed() -> bool {
+    std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(".flav-install.json").is_file())).unwrap_or(false)
+}
+
+/// How this copy came: "store" (Flav-Toolkit's Get add-ons, the way from 1.25.0), "setup" (the
+/// project's old installer) or "hand" (a folder put in place by hand).
+#[tauri::command]
+pub fn install_kind() -> &'static str {
+    if store_installed() {
+        "store"
+    } else if installed_here().is_some() {
+        "setup"
+    } else {
+        "hand"
     }
 }
 
-/// The plugin folder beside the exe, for the updater when A2 Tools doesn't load the plugin from a
-/// folder (Flav-Toolkit runs its decoders from here: addon.json `decoders`).
-pub fn own_plugin_folder() -> Option<(PathBuf, String)> {
-    let dir = std::env::current_exe().ok()?.parent()?.join("farm-guide");
-    let version = install_core::plugin_version(&std::fs::read_to_string(dir.join("manifest.json")).ok()?)?;
-    Some((dir, version))
+/// At every start of an installed copy: addon.json, the emblem and the link as this version has them.
+/// Never in a copy Flav-Toolkit installed: its files are the package's (Repair checks them).
+pub fn sync_addon() {
+    if store_installed() {
+        return;
+    }
+    if let Some(here) = installed_here() {
+        let _ = link(&here);
+    }
 }
 
 /// HKCU key of the entry in Settings › Apps (written by the installer).

@@ -87,7 +87,7 @@
   // ── the overlay's own settings, shown in the guide's Settings tab ──
   window.FG_HOST = {
     overlay: true,
-    defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle" },
+    defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovFace: "middle" },
     onFold: () => requestAnimationFrame(layout),
     // where the guide is on screen (parts you moved are pinned to the screen, placed from this)
     appBox: () => lastBox,
@@ -99,7 +99,8 @@
       const p = prefs();
       const from = OV.active === "feed" ? "Flav-Toolkit" : A2() ? "A2 Tools" : "nothing";
       const show = { front: "game in front", running: "game running", always: "always" }[p.ovShow || "front"];
-      return `records from ${from} · shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · updates ${{ ask: "ask first", auto: "automatic", off: "off" }[p.ovUpdates || "ask"]}`;
+      if (kind === "store") return `records from ${from} · shows when ${show} · started and updated by Flav-Toolkit`;
+      return `records from ${from} · shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · no more updates: move to Flav-Toolkit`;
     },
     settings({ row, seg, toggle, h, prefs, savePrefs }, part) {
       if (part === "look") {
@@ -118,13 +119,16 @@
       return;
       }
       row("Show", "Hidden whenever AION 2 isn't running; and, if you like, while you're in another window", seg("ovShow", [["front", "Game in front"], ["running", "Game running"], ["always", "Always"]], updateShow));
+      if (kind === "store") {
+        row("Starts with", "Flav-Toolkit starts and stops the guide: turn on Start with Flav-Toolkit on its page in the hub", h("span", "chip-stat", "Flav-Toolkit"));
+        row("Updates", STORE_UPDATES, h("span", "chip-stat", VERSION));
+      } else {
       row("Start with Windows", "Off unless you turn it on. When on, it waits hidden until you start AION 2", toggle("ovAutostart", () => { prefs.ovAutostartAsked = true; savePrefs(); invoke("autostart", { on: !!prefs.ovAutostart }).catch(() => {}); }));
-      const upd = h("div", "btnrow");
-      const now = h("button", "btn", "Check now");
-      now.type = "button";
-      now.addEventListener("click", () => checkUpdates(true));
-      upd.append(seg("ovUpdates", [["ask", "Ask first"], ["auto", "Automatic"], ["off", "Off"]], () => { if (prefs.ovUpdates !== "off") checkUpdates(false); }), now);
-      row("Updates", `From the project's GitHub page, signed by the publisher. ${updStatus}`, upd);
+      const mv = h("button", "btn", "How");
+      mv.type = "button";
+      mv.addEventListener("click", () => moveCard(true));
+      row("Updates", "None for this copy: Pet Farm Guide now installs and updates from Flav-Toolkit (Get add-ons). Your progress comes with you", mv);
+      }
       const feed = OV.active === "feed";
       const src = h("span", "chip-stat", feed ? "Flav-Toolkit" : A2() ? "A2 Tools" : "None");
       row("Game records", feed ? `From Flav-Toolkit (${FEED().summary()}). Without it, from A2 Tools again` : `From A2 Tools. Start Flav-Toolkit and the guide reads from it instead${FEED()?.summary() ? ` · ${FEED().summary()}` : ""}`, src);
@@ -142,7 +146,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.21.0";
+  const VERSION = "1.22.0";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -192,6 +196,27 @@
     });
   }
 
+  // ── moving to Flav-Toolkit: from 1.25.0 the guide installs and updates only from Flav-Toolkit's
+  // Get add-ons. A copy from the old setup (or put in place by hand) says so once, and in Settings.
+  function moveCard(always) {
+    const setup = kind === "setup";
+    card({
+      always: !!always,
+      title: "Pet Farm Guide now comes with Flav-Toolkit",
+      body: [
+        "This copy keeps working, but it gets no more updates.",
+        "Install Flav-Toolkit, then in its hub: Get add-ons › Pet Farm Guide › Install. Your progress comes with you (it's kept in your own folder, not in the guide's).",
+        setup
+          ? "Then remove this copy: Windows Settings › Apps › AION 2 Pet Farm Guide › Uninstall, and answer No when it asks to delete your data."
+          : "Then close this copy and delete its folder. Your progress stays.",
+      ],
+      buttons: [
+        ["Get Flav-Toolkit", () => { invoke("open_link", { url: "https://github.com/Flavbestlol/flav-toolkit/releases/latest" }).catch(() => {}); }, true],
+        ["Later", null],
+      ],
+    });
+  }
+
   // what you chose in the installer ("Start with Windows"), taken once as your answer
   async function fromInstaller() {
     const inst = await read("own", "installer");
@@ -202,115 +227,13 @@
     return inst;
   }
 
-  // ── updates: from the project's GitHub Releases, signed by the publisher (see update.rs) ──
-  const newer = (a, b) => {
-    const pa = String(a || "").split(".").map(Number), pb = String(b || "").split(".").map(Number);
-    for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0); }
-    return false;
-  };
-  let updStatus = "", updBusy = false, updDismissed = false, progressCard = null;
-  listen("update-progress", (e) => {
-    const d = e.payload || {};
-    if (progressCard && d.total) progressCard.progress(d.got / d.total);
-  });
-  async function checkUpdates(manual) {
-    const mode = prefs().ovUpdates || "ask";
-    if (updBusy || (!manual && mode === "off")) return;
-    let r;
-    try { r = await invoke("update_check"); }
-    catch (e) {
-      updStatus = `Couldn't check: ${String(e).replace(/^Error: /, "")}`;
-      if (manual) card({ title: "Couldn't check for updates", body: [updStatus.replace("Couldn't check: ", "")], tone: "warn" });
-      return;
-    }
-    a2.storage.set("updatefeed", r.feed).catch(() => {});
-    const f = r.feed || {};
-    const ov = f.overlay && newer(f.overlay.version, VERSION) ? f.overlay.version : null;
-    const pl = r.plugin && f.plugin && newer(f.plugin.version, r.plugin.version) ? { from: r.plugin.version, to: f.plugin.version, where: r.plugin.from } : null;
-    if (!ov && !pl) {
-      updStatus = `Up to date (${VERSION}).`;
-      if (manual) card({ title: "You're up to date", body: [`Overlay ${VERSION}${r.plugin ? ` · plugin ${r.plugin.version}` : ""}.`] });
-      return;
-    }
-    updStatus = `New: ${[ov && `overlay ${ov}`, pl && `plugin ${pl.to}`].filter(Boolean).join(", ")}.`;
-    if (!manual && updDismissed) return;
-    if (mode === "auto" && !manual) return installUpdates(ov, pl, f, null);
-    const lines = [];
-    if (ov) lines.push(`Overlay ${VERSION} → ${ov}`);
-    if (pl) lines.push(`Plugin ${pl.from} → ${pl.to}`);
-    if (f.notes) lines.push(String(f.notes).slice(0, 400));
-    card({
-      title: "An update is ready",
-      body: lines,
-      foot: "Downloaded from the project's GitHub page and checked against the publisher's signature.",
-      buttons: [
-        ["Update now", (c) => { installUpdates(ov, pl, f, c); return true; }, true],
-        ["Later", () => { updDismissed = true; }],
-      ],
-    });
-  }
-  // the plugin first (its files, in the folder A2 Tools loads it from), then the overlay (a restart)
-  async function installUpdates(ov, pl, f, c) {
-    if (updBusy) return;
-    updBusy = true;
-    progressCard = c;
-    try {
-      if (c) c.busy(true);
-      if (pl) {
-        if (c) { c.status("Updating the plugin…"); c.progress(0); }
-        await invoke("update_plugin");
-        if (!ov) {
-          updBusy = false;
-          if (c) c.close();
-          return pluginUpdatedCard(pl.to, pl.where);
-        }
-        if (pl.where === "a2") a2.storage.set("pluginupdated", pl.to).catch(() => {});
-      }
-      if (ov) {
-        if (c) { c.status("Downloading the overlay…"); c.progress(0); }
-        await invoke("update_overlay");
-        const p = prefs(); p.ovLastVersion = VERSION; savePrefsNow();
-        if (c) c.status("Restarting…");
-        // automatic: restart now if you're not playing; otherwise ask
-        if (c || !game.running) return setTimeout(() => invoke("update_restart").catch(() => {}), c ? 600 : 0);
-        card({
-          title: `Overlay ${ov} is ready`,
-          body: ["It restarts in a second, and you're back where you were."],
-          buttons: [["Restart now", () => { invoke("update_restart").catch(() => {}); }, true], ["After I play", () => { restartWhenIdle = true; }]],
-        });
-      }
-    } catch (e) {
-      const msg = String(e).replace(/^Error: /, "");
-      if (c) { c.status(msg, true); c.busy(false); c.progress(null); }
-      else updStatus = `Update failed: ${msg}`;
-    } finally {
-      updBusy = false;
-      progressCard = null;
-    }
-  }
-  let restartWhenIdle = false;
-  // A2 Tools has to load a plugin it reads from a folder again; Flav-Toolkit takes the new decoders by itself
-  function pluginUpdatedCard(v, from) {
-    card({
-      title: `Plugin updated to ${v}`,
-      body: [from === "a2" && A2() ? A2().pluginUpdated : "Flav-Toolkit reads the new version at its next start, or at once with Rescan in its hub."],
-    });
-  }
-  // after a restart: what changed
-  async function afterUpdate() {
-    const p = prefs();
-    if (p.ovLastVersion && p.ovLastVersion !== VERSION) {
-      const f = await read("own", "updatefeed");
-      const pv = await read("own", "pluginupdated");
-      card({
-        title: `Updated to ${VERSION}`,
-        body: [f && f.notes ? String(f.notes).slice(0, 400) : "The overlay is up to date.", ...(pv && A2() ? [A2().pluginUpdatedToo(pv)] : [])],
-      });
-      a2.storage.set("pluginupdated", null).catch(() => {});
-    }
-    p.ovLastVersion = VERSION;
-    savePrefsNow();
-  }
+  // how this copy came: "store" (Flav-Toolkit's Get add-ons: it updates and starts the guide),
+  // "setup" (the old installer) or "hand". Set at start (install.rs install_kind). From 1.25.0 the
+  // overlay has no updater of its own: Flav-Toolkit updates the copies it installed, older copies
+  // are told to move (moveCard).
+  let kind = "hand";
+  const STORE_UPDATES = "From Flav-Toolkit: its hub tells you when a new version is out (Get add-ons) and installs it";
+
   const prefs = () => (window.FG_prefs ? window.FG_prefs() : {});
   function applyLook() {
     const p = prefs();
@@ -569,7 +492,6 @@
     const [running, front] = e.payload || [true, true];
     if (!running) recapDone = false; // the next game start gets its own recap
     game = { running: !!running, front: !!front };
-    if (!running && restartWhenIdle) invoke("update_restart").catch(() => {});
     updateShow();
     if (running && front) maybeRecap();
   });
@@ -671,7 +593,6 @@
     if (a === "lock") window.FG_toggleLock && window.FG_toggleLock();
     if (a === "reset") { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); }
     if (a === "quit") shutdown();
-    if (a === "update") checkUpdates(true);
     sendHits();
   });
 
@@ -701,14 +622,17 @@
         });
       }
       const p = prefs();
-      // start with Windows only when you chose it; earlier versions turned it on by themselves
-      if (!p.ovAutostartAsked) { invoke("autostart", { on: false }).catch(() => {}); askAutostart(); }
-      else invoke("autostart", { on: !!p.ovAutostart }).catch(() => {}); // keeps the entry pointing at this exe
-      afterUpdate();
+      kind = await invoke("install_kind").catch(() => "hand");
+      if (kind === "store") {
+        // Flav-Toolkit starts the guide: no entry of our own (one an older copy left goes too)
+        invoke("autostart", { on: false }).catch(() => {});
+      } else {
+        // start with Windows only when you chose it; earlier versions turned it on by themselves
+        if (!p.ovAutostartAsked) { invoke("autostart", { on: false }).catch(() => {}); askAutostart(); }
+        else invoke("autostart", { on: !!p.ovAutostart }).catch(() => {}); // keeps the entry pointing at this exe
+        if (!p.ovMoveTold) { p.ovMoveTold = true; savePrefsNow(); moveCard(false); }
+      }
     }, 300);
-    // updates: a look a little after start, then every 6 hours
-    setTimeout(() => checkUpdates(false), 20000);
-    setInterval(() => checkUpdates(false), 6 * 3600 * 1000);
     // layout once the guide has rendered, then keep the tip's place as its text changes
     const ro = new ResizeObserver(() => layout());
     ro.observe($(".tip"));

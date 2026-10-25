@@ -41,13 +41,15 @@ def pets_list(D_ids, level=0, points=0):
     return {"levels": [{"pet": int(i), "level": level} for i in D_ids], "points": [{"pet": int(i), "points": points} for i in D_ids]}
 
 
-def boot(browser, files=None, source=None):
+def boot(browser, files=None, source=None, kind=None):
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.on("console", lambda m: errors.append(f"{m.type}: {m.text}") if m.type == "error" and "Failed to load resource" not in m.text else None)
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
     init = "window.__FILES=" + json.dumps(files or {}) + ";"
     if source is not None:
         init += "window.__source=" + json.dumps(source) + ";"
+    if kind is not None:
+        init += "window.__kind=" + json.dumps(kind) + ";"
     page.add_init_script(init + FAKE)
     page.goto(URL)
     page.wait_for_function("() => typeof window.FG_key === 'function'", timeout=15000)
@@ -213,6 +215,48 @@ with sync_playwright() as p:
     check("A2 Tools → Flav-Toolkit: the newer counts win", got["points"].get(str(pet)) == 7, got)
     got = page.evaluate("() => FG_OV.records.get('log-server-1012')")
     check("A2 Tools → Flav-Toolkit: both soul logs, each pickup once", len(got["log"]) == 2, got)
+    page.close()
+
+    # ── how this copy came (1.25.0: the guide installs and updates from Flav-Toolkit only) ──
+    title = lambda page: page.evaluate("() => document.querySelector('.ovcard .oc-t')?.textContent || ''")
+    def click_card(page, label):
+        page.evaluate("(l) => [...document.querySelectorAll('.ovcard .oc-btn')].find((b) => b.textContent === l)?.click()", label)
+        page.wait_for_timeout(450)
+
+    # installed by Flav-Toolkit's Get add-ons: Flav-Toolkit starts and updates it
+    page = boot(browser, kind="store")
+    page.wait_for_timeout(500)
+    calls = page.evaluate("() => window.__calls")
+    check("store copy: no Start with Windows question", "Start with Windows" not in title(page), title(page))
+    check("store copy: no move notice", "now comes with Flav-Toolkit" not in title(page), title(page))
+    check("store copy: its own Start with Windows entry is taken away", ["autostart", {"on": False}] in calls)
+    calls = page.evaluate("() => window.__calls")
+    check("no copy checks GitHub for updates any more", not any(c[0].startswith("update_") for c in calls))
+    settings_text = lambda page: page.evaluate("() => { document.querySelector('.tabs button[data-tab=\"settings\"]')?.click(); return new Promise((r) => setTimeout(() => r(document.body.innerText), 400)); }")
+    text = settings_text(page)
+    check("store copy: Settings say Flav-Toolkit starts and updates it", "Flav-Toolkit starts and stops the guide" in text and "its hub tells you when a new version is out" in text)
+    check("store copy: no Start with Windows switch", "Start with Windows" not in text)
+    page.close()
+
+    # a copy from the old setup: the move notice once, after the Start with Windows question
+    page = boot(browser, kind="setup")
+    page.wait_for_timeout(500)
+    check("setup copy: the Start with Windows question first", title(page) == "Start with Windows?", title(page))
+    click_card(page, "No thanks")
+    check("setup copy: then the move to Flav-Toolkit", title(page) == "Pet Farm Guide now comes with Flav-Toolkit", title(page))
+    body = page.evaluate("() => document.querySelector('.ovcard .oc-b')?.textContent || ''")
+    check("setup copy: it says how to remove the old copy and keep the data", "Settings › Apps" in body and "answer No" in body, body)
+    click_card(page, "Get Flav-Toolkit")
+    calls = page.evaluate("() => window.__calls")
+    check("setup copy: Get Flav-Toolkit opens its release page", ["open_link", {"url": "https://github.com/Flavbestlol/flav-toolkit/releases/latest"}] in calls)
+    prefs = json.loads(page.evaluate("() => window.__files.own.prefs || '{}'") or "{}")
+    check("setup copy: the notice is told once", prefs.get("ovMoveTold") is True, prefs)
+    page.close()
+    page = boot(browser, {"own": {"prefs": json.dumps(prefs)}}, kind="setup")
+    page.wait_for_timeout(500)
+    check("setup copy: not told again at the next start", title(page) == "", title(page))
+    text = settings_text(page)
+    check("setup copy: Settings say it gets no more updates, and how to move", "None for this copy" in text)
     page.close()
 
     browser.close()

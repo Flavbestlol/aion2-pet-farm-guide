@@ -3,10 +3,9 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img alt="Download" src="https://img.shields.io/badge/download-latest%20release-f2c35b?style=for-the-badge"></a>
+  <a href="https://github.com/Flavbestlol/flav-toolkit/releases/latest"><img alt="Install with Flav-Toolkit" src="https://img.shields.io/badge/install-with%20Flav--Toolkit-f2c35b?style=for-the-badge"></a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-1f6fd6?style=for-the-badge">
   <img alt="Flav-Toolkit 0.3+" src="https://img.shields.io/badge/a%20Flav--Toolkit%20add--on-0.3%2B-f2c35b?style=for-the-badge">
-  <img alt="or A2 Tools 2.0.65+" src="https://img.shields.io/badge/or%20A2%20Tools-2.0.65%2B-c58cff?style=for-the-badge">
   <img alt="Vibe coded" src="https://img.shields.io/badge/vibe-coded-6fe3a1?style=for-the-badge">
   <a href="https://ko-fi.com/flavbest"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white"></a>
 </p>
@@ -24,7 +23,7 @@
 ## Contents
 
 - [What it does](#what-it-does)
-- [Install](#install) (about 5 minutes)
+- [Install](#install)
 - [Updating](#updating)
 - [Uninstalling](#uninstalling)
 - [Is it safe?](#is-it-safe)
@@ -40,7 +39,7 @@ The guide needs something that reads the game for it. **Flav-Toolkit is the main
 | Reads the game | How the guide works with it |
 |---|---|
 | **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw. The overlay keeps your progress. |
-| **[A2 Tools DPS Meter](https://a2tools.app)** (backup) | The guide's plugin runs inside the meter, reads the same things and keeps your progress; the overlay shows it over the game. |
+| **[A2 Tools DPS Meter](https://a2tools.app)** (backup) | Load the plugin Flav-Toolkit installed in the meter (see [Install](#install)): it reads the same things and keeps your progress; the overlay shows it over the game. |
 
 When both run, the guide reads from Flav-Toolkit and A2 Tools only stands by; if Flav-Toolkit stops, the guide carries on from A2 Tools by itself. *Settings › Overlay › Game records* says which one it uses.
 
@@ -122,69 +121,46 @@ Round or square, resize with the gold grip, or hide the monster icons, all right
 
 You need **Windows 10 or 11** (64-bit) and **AION 2** in Borderless or Windowed mode.
 
-### Step 1: something that reads the game
+**Pet Farm Guide is a Flav-Toolkit add-on.** Flav-Toolkit installs it, starts it, keeps it up to date and repairs it, like its other add-ons.
 
-> [!IMPORTANT]
-> Most setups that fail, fail here. Make sure it reads the game before going on.
+1. Install **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit/releases/latest)** (0.3 or later) and follow its own steps (Npcap, run it as administrator, start AION 2 while it runs).
+2. In Flav-Toolkit's hub: **Get add-ons › Pet Farm Guide › Install**.
+3. On the guide's page in the hub, turn on **Start with Flav-Toolkit**: the overlay is what records your souls, so it should run while you farm.
+4. Log in to your character. The game sends your pet levels at login; Flav-Toolkit hands them to the guide even if it starts later.
 
-**Flav-Toolkit** (0.3 or later, the main way): install it from [its releases](https://github.com/Flavbestlol/flav-toolkit/releases/latest) and follow its own steps (Npcap, run it as administrator, start AION 2 with it running). Then go to Step 2.
-
-**Or, as a backup, the A2 Tools DPS Meter:**
-
-1. Install **[Npcap](https://npcap.com/#download)**. On the options screen, tick **"Install Npcap in WinPcap API-compatible Mode"**.
-   (If you skip this, the meter offers to install Npcap the first time it opens. Tick the same box then.)
-2. Download the meter from **[a2tools.app](https://a2tools.app)** (**Download Latest Version**) and run the installer.
-3. Right-click **A2Tools DPS Meter** and choose **Run as administrator**. To make it stick, right-click the shortcut, then **Properties › Compatibility › Run this program as an administrator**.
-4. Start AION 2 and hit a monster. Your damage should appear on the meter.
-
-### Step 2: the guide
-
-1. Download **`Farm-Guide-Setup-….exe`** from the [latest release](../../releases/latest) and run it.
-   Windows may say *"Windows protected your PC"*, because the setup is new and not code-signed: click **More info › Run anyway**.
-2. Click **Next**, **Next**, **Install**. The setup:
-   - installs the guide for your Windows account only, in `%LOCALAPPDATA%\Programs\AION 2 Pet Farm Guide` (no administrator rights);
-   - **tells Flav-Toolkit's hub where the guide is** (a small link file in Flav-Toolkit's folder), so it lists the guide even if you install Flav-Toolkit later;
-   - **adds the plugin to the A2 Tools meter for you**, if it's on your PC, exactly as *Settings › Plugins › Load plugin folder…* would. If an older copy was loaded by hand, it takes its place, and your progress carries over;
-   - asks whether to **start with Windows**. It's off unless you tick it.
-3. Start Flav-Toolkit (or the meter, as administrator), then log in to your character. The game sends your pet levels at login; with Flav-Toolkit, the guide gets them even if it starts later.
-
-The overlay shows the guide over AION 2 while you play (in the meter, the guide also opens in its own window). Drag the tip where you like, and you're set. With Flav-Toolkit, its hub can start the guide for you: *Start with Flav-Toolkit* on the guide's page.
+The overlay shows the guide over AION 2 while you play. Drag the tip where you like, and you're set.
 
 > [!NOTE]
-> The meter can't take changes while it's open. If it's open during the setup, the setup asks you to close it for a moment; if you'd rather not, the overlay finishes the job by itself the next time you close the meter.
+> **Had the guide from its own setup before (1.24.0 or older)?** It tells you once: install it from Get add-ons as above, then remove the old copy in **Windows Settings › Apps › AION 2 Pet Farm Guide › Uninstall** and answer **No** when it asks to delete your data. Your progress lives in your own folder (`%APPDATA%\app.farmguide.overlay`), not in the guide's, so it carries over. The old copy keeps working until then, but gets no more updates.
 
 <details>
-<summary><b>Install by hand, without the setup</b></summary>
+<summary><b>The A2 Tools DPS Meter as a backup reader</b></summary>
 
-1. From the [latest release](../../releases/latest), download **`Farm-Guide-Plugin-….zip`** and **`Farm-Guide-Overlay-….zip`**. Extract both somewhere they can stay, like `Documents\AION 2`.
-2. In the meter: **Settings › Plugins**, switch on **Plugin developer mode**, click **Load plugin folder…**, and pick the **`farm-guide`** folder (the one with `manifest.json` inside).
+If Flav-Toolkit isn't reading the game, the guide can read from the [A2 Tools DPS Meter](https://a2tools.app) instead (its support goes once the project has its own DPS meter). Load the plugin Flav-Toolkit installed:
+
+1. In the meter: **Settings › Plugins**, switch on **Plugin developer mode**, click **Load plugin folder…**
+2. Pick `%APPDATA%\com.flavbest.flav-toolkit\addons\pet-farm-guide\farm-guide` (the folder with `manifest.json` inside).
 3. Click **Open** next to the plugin, then go to character select and back in.
-4. Double-click **`Farm Guide Overlay.exe`** in the overlay folder.
 
+Flav-Toolkit keeps that folder up to date; after an update, click **Check for updates** in the meter's plugin list.
 </details>
 
 ## Updating
 
-The overlay keeps both parts up to date:
-
-- When a new version is out, it shows **"An update is ready"**. Click **Update now**: it updates the plugin and itself where they're installed, then restarts. Flav-Toolkit picks up the new decoders by itself (the hub's **Rescan**, or its next start).
-- With the A2 Tools meter: **Settings › Plugins › Check for updates** so it loads the new plugin.
-- Choose how in the guide: **Settings › Overlay › Updates**: *Ask first* (the default), *Automatic*, or *Off*. Or right-click the tray icon › **Check for updates**.
-
-Running a newer setup works too: it installs over the old version and keeps your choices. Installed by hand, without the overlay: extract the new plugin zip over your old `farm-guide` folder, then **Check for updates** in the meter.
+Flav-Toolkit does it: when a new version is out, its hub says so (the **Get add-ons** tab, the dock's mark, a toast). Click **Update**. **Repair** puts back a missing or changed file, and **Roll back** returns to the version before. Your progress and settings are never touched.
 
 ## Uninstalling
 
-**Windows Settings › Apps › AION 2 Pet Farm Guide › Uninstall.** It takes the plugin out of the meter too (close the meter first) and its link out of Flav-Toolkit's folder, and asks whether to delete the guide's own folder (your choices and its copy of your soul history). Your pet levels come back from the game at your next login either way.
+In Flav-Toolkit's hub: **Get add-ons › Pet Farm Guide › Remove**. Your progress stays in `%APPDATA%\app.farmguide.overlay`; delete that folder too if you want it gone.
 
 ## Is it safe?
 
 Here is exactly what each part does:
 
 - **The plugin** runs in the meter's sandbox. It has no network access. It reads only your own game data: which character you're on (so each one keeps its own progress), your pets' levels, the souls you get, the level-ups, and the id of the map you load. It never sees chat or other players' data. Everything it saves stays on your PC.
-- **The overlay** never touches the game. It reads the game records from Flav-Toolkit's local feed (on your PC only, from the overlay's program side: no web page can reach it) or from the plugin's saved files, and keeps its own settings and copy of your progress. Its only network use is the update check: it downloads a small file from this repository's releases, from `github.com` and GitHub's release-file hosts only (any other redirect is refused). **It sends nothing about you.**
+- **The overlay** never touches the game. It reads the game records from Flav-Toolkit's local feed (on your PC only, from the overlay's program side: no web page can reach it) or from the plugin's saved files, and keeps its own settings and copy of your progress. **It has no network access at all** (`addon.json` lists none): Flav-Toolkit downloads its updates, checked against Flav-Toolkit's signed catalogue.
 - **With Flav-Toolkit**, the guide is an ordinary add-on: Flav-Toolkit runs the guide's own decoders (the same four the plugin has: your pets' levels, the souls you get, level-ups, the map) and nothing else of the guide's. The guide declares what it reads and reaches in its `addon.json`, which Flav-Toolkit's hub shows.
-- **The setup** changes two things outside its own folder: Flav-Toolkit's add-on links (one small file, `addon-links\pet-farm-guide.json`, naming the guide's folder), and, if the A2 Tools meter is on your PC, its plugin list: it turns on *Plugin developer mode* and adds the guide's `farm-guide` folder, as you would by hand, and keeps a copy of the meter's settings as they were (`settings.json.farm-guide-backup`, next to them). Uninstalling takes both out again.
+- **Flav-Toolkit builds it** from this repository at a pinned commit, on GitHub's servers, and its hub installs only what its signed catalogue lists, byte for byte. The game's images and map tiles come from a release zip of this repository pinned by its SHA-256 ([`tools/store_build.py`](tools/store_build.py)).
 - **It's open.** All the code is in this repository: read it, or build it yourself.
 
 > [!NOTE]
@@ -199,19 +175,9 @@ Start it with **Run as administrator**. If that doesn't help, reinstall [Npcap](
 </details>
 
 <details>
-<summary><b>My antivirus flags it, or Windows says "Windows protected your PC"</b></summary>
+<summary><b>My antivirus flags it</b></summary>
 
-The guide is new and not code-signed, and some antivirus programs guess wrongly about new programs that download their own updates (Microsoft Defender's guesses end in `!ml`). It's a false alarm: all the code is in this repository.
-
-- Download it **only from this page's [Releases](../../releases/latest)**, never from a re-upload.
-- Use **`Farm-Guide-Setup-….exe`**. It's the one meant to be run; the other files are for updates and by-hand installs.
-- If your antivirus still blocks it, please [open an issue](../../issues) with its name and the detection name, so it can be reported to that vendor.
-</details>
-
-<details>
-<summary><b>The setup says the meter is open</b></summary>
-
-Close the A2 Tools DPS Meter, then click **Retry**. It only needs to be closed while the guide adds itself to its plugin list, a second or two. Click **Cancel** instead, and the overlay does it the next time you close the meter.
+The overlay is new and not code-signed, and some antivirus programs guess wrongly about new programs (Microsoft Defender's guesses end in `!ml`). It's a false alarm: all the code is in this repository, and Flav-Toolkit builds it from here. If your antivirus still blocks it, please [open an issue](../../issues) with its name and the detection name, so it can be reported to that vendor.
 </details>
 
 <details>
@@ -230,7 +196,7 @@ Go to character select and log back in, with Flav-Toolkit (or the meter) already
 <details>
 <summary><b>Flav-Toolkit's hub doesn't list the guide, or says it's broken</b></summary>
 
-The guide needs Flav-Toolkit **0.3 or later** (older hubs refuse its `decoders`). Update Flav-Toolkit, then click **Rescan** in the hub. Start the guide once if you installed it before this version: it writes its `addon.json` and its link by itself.
+The guide needs Flav-Toolkit **0.3 or later** (older hubs refuse its `decoders`). Update Flav-Toolkit, then open **Get add-ons**. If it says the guide is broken, click **Repair**.
 </details>
 
 <details>
@@ -273,12 +239,11 @@ AION 2 is a trademark of NCSOFT. This project isn't affiliated with NCSOFT.
 
 Bug reports, ideas and pull requests are welcome. It's a side project, so answers may take a while.
 
-- **The plugin** is plain HTML, CSS and JavaScript in [`plugin/farm-guide`](plugin/farm-guide). The release zip has the full folder with images and map tiles. To try a change, load the folder in the meter's developer mode and click **Check for updates** after each edit.
-- **The overlay** is a [Tauri 2](https://tauri.app) app in [`overlay`](overlay). Its page is built from the plugin by `overlay/assemble.py`; `overlay/build.sh` builds the Windows exe (MSVC, through [cargo-xwin](https://github.com/rust-cross/cargo-xwin)).
+- **The plugin** is plain HTML, CSS and JavaScript in [`plugin/farm-guide`](plugin/farm-guide). The copy Flav-Toolkit installs has the full folder with images and map tiles (`tools/store_build.py`). To try a change, load the folder in the meter's developer mode and click **Check for updates** after each edit.
+- **The overlay** is a [Tauri 2](https://tauri.app) app in [`overlay`](overlay). Its page is built from the plugin by `overlay/assemble.py`; the workspace at the root builds it (`cargo build --release -p farm-guide-overlay`), as Flav-Toolkit's add-on packager does after [`tools/store_build.py`](tools/store_build.py).
 - **Where the records come from**: Flav-Toolkit's feed ([`overlay/src-tauri/src/feed.rs`](overlay/src-tauri/src/feed.rs), [`overlay/web/source-feed.js`](overlay/web/source-feed.js)) or the A2 Tools plugin (everything about A2 Tools is in [`overlay/src-tauri/src/a2`](overlay/src-tauri/src/a2) and [`overlay/web/source-a2.js`](overlay/web/source-a2.js), so it can go in one piece). The rules for the player's records: [`overlay/web/records.js`](overlay/web/records.js).
-- **The setup** is an [NSIS](https://nsis.sourceforge.io) script in [`installer`](installer). It installs the files; the overlay itself writes Flav-Toolkit's link (`--setup-link`) and adds the plugin to the meter (`--setup-register`, in [`overlay/src-tauri/src/a2/setup.rs`](overlay/src-tauri/src/a2/setup.rs)).
 - **Tests** run in CI on every pull request: `python3 tools/check.py`, `node --test tests/js/*.test.js`, the page in a browser (`tests/overlay`), and the Rust parts with no window (`tests/*_core`, one of them against a real Flav-Toolkit feed).
-- **A release** is made with [`tools/make_release.py`](tools/make_release.py) (the setup, the zips and the signed update feed), which signs it with the project's private key (kept out of this repository).
+- **A release**: raise the version (`addon.json` and the plugin's `manifest.json` together; `tools/check.py` holds them to it), merge, then ask Flav-Toolkit to move the guide's pinned commit in its catalogue. Flav-Toolkit's CI builds and publishes it.
 
 ## Support
 
