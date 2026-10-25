@@ -44,6 +44,9 @@ The guide needs something that reads the game for it. Either works, and you can 
 
 When both run, the guide reads from Flav-Toolkit. *Settings › Overlay › Game records* says which one it uses.
 
+> [!TIP]
+> With Flav-Toolkit, the overlay is what records your souls, so keep it running while you farm: turn on **Start with Flav-Toolkit** on the guide's page in Flav-Toolkit's hub. Pet levels are never lost either way (the game sends them at every login), but souls picked up while the overlay is closed only show up after your next login.
+
 | Part | What it does |
 |---|---|
 | **The overlay** | A small app that draws the guide over AION 2: a tip you place anywhere, which opens into the full guide. Everywhere else, your clicks go to the game. |
