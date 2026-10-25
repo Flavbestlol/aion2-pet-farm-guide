@@ -54,7 +54,8 @@ fn main() {
     let client = Client::connect(&config);
     check("Flav-Toolkit welcomes our hello (id and every type we ask for)", client.is_ok(), &client.as_ref().err());
     let mut client = client.unwrap();
-    let got = page(&mut client, Duration::from_millis(500));
+    // the core's status may come in between (every 2 s): only the events count here
+    let got: Vec<(&str, Value)> = page(&mut client, Duration::from_millis(500)).into_iter().filter(|(n, _)| *n == "feed").collect();
     let types: Vec<String> = got.iter().map(|(n, v)| format!("{n}:{}", v["type"].as_str().unwrap_or("?"))).collect();
     // the order inside each group is the core's (its maps); what the page needs: who you are first
     let first_decoded = got.iter().position(|(_, v)| v["type"] == "decoded").unwrap_or(got.len());
