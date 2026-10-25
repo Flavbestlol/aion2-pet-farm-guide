@@ -200,7 +200,7 @@ fn hit_test_loop(app: AppHandle) {
         }
         // stay above the game (a borderless game window can take the top spot when it's focused)
         tick = tick.wrapping_add(1);
-        if tick % 80 == 0 && state.showing.load(Ordering::SeqCst) {
+        if tick.is_multiple_of(80) && state.showing.load(Ordering::SeqCst) {
             #[cfg(windows)]
             if let Ok(h) = window.hwnd() {
                 win::raise_topmost(h.0 as isize);
@@ -216,7 +216,7 @@ fn watch_game(app: AppHandle) {
     let mut last: Option<(bool, bool)> = None;
     let mut running = false;
     loop {
-        if tick % 7 == 0 {
+        if tick.is_multiple_of(7) {
             running = win::game_running();
         }
         tick = tick.wrapping_add(1);
