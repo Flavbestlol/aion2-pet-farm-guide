@@ -1,6 +1,8 @@
 // Farm Guide Overlay: the host page. It stands in for A2 Tools' SDK (window.a2) so the same guide
 // code runs here, in a transparent window over the game:
-//  - game records come from a source: A2 Tools' plugin (source-a2.js, everything about A2 Tools);
+//  - game records come from a source: Flav-Toolkit's feed while it runs (source-feed.js), else
+//    A2 Tools' plugin (source-a2.js, everything about A2 Tools);
+//  - the counts and the soul log: our own copy, merged with the plugin's (records.js);
 //  - our own settings and route position live in the overlay's folder;
 //  - the tip and the guide float anywhere on screen; everything else lets clicks through to the game.
 (function () {
@@ -22,27 +24,64 @@
     if (t == null || t === "") return null;
     try { return JSON.parse(t); } catch { return null; }
   };
-  // what a source of game records may use (source-a2.js); it adds itself to sources
-  const OV = (window.FG_OV = { invoke, listen, read, fire, card: (spec) => card(spec), prefs: () => prefs(), version: () => VERSION, sources: {} });
+  // what a source of game records may use (source-a2.js, source-feed.js); each adds itself to sources
+  const OV = (window.FG_OV = { invoke, listen, read, fire, card: (spec) => card(spec), prefs: () => prefs(), version: () => VERSION, sources: {}, active: "a2" });
   const A2 = () => OV.sources.a2 || null;
+  const FEED = () => OV.sources.feed || null;
+
+  // ── the player's records (counts, soul log, the server played last) ──
+  // We keep our own copy whichever source is in use; A2 Tools' plugin keeps its own. Reading takes
+  // the newer counts and both logs (records.js), so moving between the sources loses nothing.
+  const R = window.FG_RECORDS;
+  const RECORD = /^(pets-|log-|last$)/;
+  OV.records = {
+    async get(key) {
+      const fromA2 = OV.active === "a2";
+      const [own, theirs] = await Promise.all([read("own", key), A2() ? A2().readOwned(key) : null]);
+      if (key.startsWith("pets-")) return R.newerPets(own, theirs, fromA2 ? "b" : "a");
+      if (key.startsWith("log-")) return R.mergeLogs(own, theirs);
+      return fromA2 ? theirs ?? own : own ?? theirs; // last
+    },
+    set: (key, value) => invoke("write_file", { scope: "own", key, value: JSON.stringify(value) }),
+  };
+  // which source is in use: Flav-Toolkit while its feed is connected, A2 Tools otherwise
+  OV.setActive = (id) => {
+    if (id === OV.active) return;
+    OV.active = id;
+    document.body.dataset.source = id;
+    const n = $(".ovnotice");
+    if (n) n.hidden = true; // the new source says soon enough whether it records
+    if (id === "feed") feedHello();
+  };
+  // the first time Flav-Toolkit is the source: say so, once
+  function feedHello() {
+    const p = prefs();
+    if (!window.FG_prefs || p.ovFeedSeen) return;
+    p.ovFeedSeen = true;
+    a2.storage.set("prefs", p);
+    card({
+      title: "Reading the game from Flav-Toolkit",
+      body: ["Flav-Toolkit is running, so the guide gets your pets from it, with the same counts as before.", A2() ? "A2 Tools isn't needed for the guide while Flav-Toolkit runs; without Flav-Toolkit it reads from A2 Tools again." : "Without Flav-Toolkit, nothing is recorded."],
+      foot: "Settings › Overlay shows where your records come from.",
+    });
+  }
   window.a2 = Object.freeze({
     on(ev, fn) { (handlers[ev] ||= []).push(fn); },
     storage: Object.freeze({
       async get(key) {
-        if (A2()?.owns(key)) return A2().readOwned(key);
+        if (RECORD.test(key)) return OV.records.get(key);
         const own = await read("own", key);
         if (own != null || key !== "prefs") return own;
         // first start: the source may have the player's choices already
         return (await A2()?.firstPrefs?.()) ?? null;
       },
       async set(key, value) {
-        if (A2()?.owns(key)) return; // the source owns those
         await invoke("write_file", { scope: "own", key, value: JSON.stringify(value) });
       },
     }),
     notify: async () => true,
     window: Object.freeze({ show: async () => {}, hide: async () => {} }),
-    ready: async () => { A2()?.start(); return true; },
+    ready: async () => { A2()?.start(); FEED()?.start(); return true; },
   });
 
   // ── the overlay's own settings, shown in the guide's Settings tab ──
@@ -58,8 +97,9 @@
     capture(on) { lastHits = ""; invoke("set_capture", { on: !!on }).catch(() => {}); if (!on) sendHits(); },
     summary() {
       const p = prefs();
+      const from = OV.active === "feed" ? "Flav-Toolkit" : A2() ? "A2 Tools" : "nothing";
       const show = { front: "game in front", running: "game running", always: "always" }[p.ovShow || "front"];
-      return `shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · updates ${{ ask: "ask first", auto: "automatic", off: "off" }[p.ovUpdates || "ask"]}`;
+      return `records from ${from} · shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · updates ${{ ask: "ask first", auto: "automatic", off: "off" }[p.ovUpdates || "ask"]}`;
     },
     settings({ row, seg, toggle, h, prefs, savePrefs }, part) {
       if (part === "look") {
@@ -85,9 +125,12 @@
       now.addEventListener("click", () => checkUpdates(true));
       upd.append(seg("ovUpdates", [["ask", "Ask first"], ["auto", "Automatic"], ["off", "Off"]], () => { if (prefs.ovUpdates !== "off") checkUpdates(false); }), now);
       row("Updates", `From the project's GitHub page, signed by the publisher. ${updStatus}`, upd);
+      const feed = OV.active === "feed";
+      const src = h("span", "chip-stat", feed ? "Flav-Toolkit" : A2() ? "A2 Tools" : "None");
+      row("Game records", feed ? `From Flav-Toolkit (${FEED().summary()}). Without it, from A2 Tools again` : `From A2 Tools. Start Flav-Toolkit and the guide reads from it instead${FEED()?.summary() ? ` · ${FEED().summary()}` : ""}`, src);
       A2()?.settings?.({ row, seg, toggle, h, prefs, savePrefs });
-      const k = h("span", "chip-stat", "Ctrl+Alt+L");
-      row("Lock / unlock", A2()?.lockHint || "Locked: clicks go through to the game, except the padlock: click it to unlock", k);
+      const k = h("span", "chip-stat", feed ? "Padlock" : "Ctrl+Alt+L");
+      row("Lock / unlock", (feed ? FEED() : A2())?.lockHint || "Locked: clicks go through to the game, except the padlock: click it to unlock", k);
       const btns = h("div", "btnrow");
       const reset = h("button", "btn", "Reset position");
       reset.type = "button";

@@ -2,11 +2,13 @@
 // the game's focus. The mouse goes through it to the game everywhere except over the tip and the
 // guide (the page tells us where those are), so it behaves like part of the game's HUD.
 //
-// Data: game records come from a source. Today that is the Farm Guide plugin in A2 Tools (a2/:
-// everything about A2 Tools is there). Our own settings live in %APPDATA%\app.farmguide.overlay.
+// Data: game records come from a source: Flav-Toolkit's feed (feed.rs) while it runs, else the Farm
+// Guide plugin in A2 Tools (a2/: everything about A2 Tools is there). Our own settings live in %APPDATA%\app.farmguide.overlay.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod a2;
+mod feed;
+mod feed_core;
 mod install;
 mod update;
 mod update_core;
@@ -54,6 +56,17 @@ fn read_file(state: tauri::State<State>, scope: String, key: String) -> Option<S
     std::fs::read_to_string(dir_of(&state, &scope).ok()?.join(format!("{key}.json"))).ok()
 }
 
+/// A file and when it was last written (Unix ms), to tell which of two copies is newer.
+#[tauri::command]
+fn read_stamped(state: tauri::State<State>, scope: String, key: String) -> Option<(String, u64)> {
+    if !valid_key(&key) {
+        return None;
+    }
+    let path = dir_of(&state, &scope).ok()?.join(format!("{key}.json"));
+    let at = std::fs::metadata(&path).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as u64;
+    Some((std::fs::read_to_string(&path).ok()?, at))
+}
+
 /// Our own files, and in the plugin's folder only our heartbeat (its records are never touched).
 #[tauri::command]
 fn write_file(state: tauri::State<State>, scope: String, key: String, value: String) -> Result<(), String> {
@@ -62,6 +75,9 @@ fn write_file(state: tauri::State<State>, scope: String, key: String, value: Str
     }
     if scope == "plugin" && key != "overlay" {
         return Err("only overlay.json may be written in the plugin's folder".into());
+    }
+    if scope == "plugin" && !a2::installed() {
+        return Err("A2 Tools isn't on this PC".into());
     }
     let dir = dir_of(&state, &scope)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -396,7 +412,8 @@ fn main() {
             game_front: AtomicBool::new(cfg!(not(windows))),
             showing: AtomicBool::new(true),
         })
-        .invoke_handler(tauri::generate_handler![read_file, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
+        .manage(feed::FeedState(Mutex::new(serde_json::json!({ "feed": false }))))
+        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);

@@ -27,9 +27,17 @@ pub fn plugin_dir() -> PathBuf {
     })
 }
 
-/// The watchers: the bridge and A2 Tools' lock.
+/// A2 Tools is on this PC (its own folder exists): only then do we watch or write anything of its.
+pub fn installed() -> bool {
+    std::env::var_os("FG_PLUGIN_DIR").is_some()
+        || std::env::var_os("APPDATA").is_some_and(|a| PathBuf::from(a).join("com.a2tools.dps-meter").is_dir())
+}
+
+/// The watchers: the bridge and A2 Tools' lock (they wait quietly while A2 Tools isn't there).
 pub fn start(app: &AppHandle) {
-    let _ = std::fs::create_dir_all(plugin_dir());
+    if installed() {
+        let _ = std::fs::create_dir_all(plugin_dir());
+    }
     let h = app.clone();
     std::thread::spawn(move || watch_bridge(h));
     let h = app.clone();
