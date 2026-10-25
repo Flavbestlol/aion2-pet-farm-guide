@@ -131,6 +131,17 @@ with sync_playwright() as p:
     page.wait_for_timeout(700)
     check("Flav-Toolkit: a new login's list waits for its server", page.evaluate("() => FG_key()") == "server-2020" and own("pets-server-2020") is not None, page.evaluate("() => FG_key()"))
     check("Flav-Toolkit: the other server's counts are untouched", own("pets-server-1012")["points"].get(str(pet)) == 1)
+    # a relog on yet another server whose my_server comes late (after the hold): never filed under the server before
+    feed({"type": "decoded", "at_ms": int(time.time() * 1000), "plugin": "farm-guide", "decoder": "pet-list", "data": pets_list(ids[:7], level=9)})
+    page.wait_for_timeout(2200)
+    feed({"type": "my_server", "at_ms": int(time.time() * 1000), "server": 2030})
+    page.wait_for_timeout(900)
+    late = own("pets-server-2030")
+    check("Flav-Toolkit: a list whose server comes late lands under that server, not the one before", page.evaluate("() => FG_key()") == "server-2030" and late is not None and len(late["levels"]) == 7, page.evaluate("() => FG_key()"))
+    check("Flav-Toolkit: … and the server before keeps its counts", len(own("pets-server-2020")["levels"]) == 10)
+    # back on 1012 for the rest
+    feed({"type": "my_server", "at_ms": int(time.time() * 1000), "server": 1012})
+    page.wait_for_timeout(400)
     # the hub's Settings opens the guide's settings
     page.evaluate("() => window.__emitHost('show', 'settings')")
     page.wait_for_timeout(700)
@@ -142,6 +153,54 @@ with sync_playwright() as p:
     check("Flav-Toolkit gone: back to A2 Tools", page.evaluate("() => FG_OV.active") == "a2")
     merged = page.evaluate("() => FG_OV.records.get('log-server-1012')")
     check("Flav-Toolkit gone: the soul log from its time is still read", bool(merged) and len(merged["log"]) >= 2)
+    page.close()
+
+    # Flav-Toolkit stops right after a pickup that A2 Tools' bridge brings a moment later: counted once
+    page = boot(browser, source={"feed": True, "core": "0.3.0", "status": {"capturing": True, "game": True, "source": "live", "text": "Reading the game"}})
+    feed = lambda e: page.evaluate("(e) => window.__emitHost('feed', e)", e)
+    own = lambda k: page.evaluate("(k) => window.__files.own[k] ? JSON.parse(window.__files.own[k]) : null", k)
+    page.evaluate("(c) => { window.__files.plugin.bridge = JSON.stringify({ v: 2, run: 7, seq: 0, character: c, events: [] }); window.__emitHost('bridge', window.__files.plugin.bridge); }", CHAR)
+    feed({"type": "my_server", "at_ms": now - 60000, "server": 1012})
+    feed({"type": "decoded", "at_ms": now - 60000, "plugin": "farm-guide", "decoder": "pet-list", "data": pets_list(ids[:40])})
+    page.wait_for_timeout(700)
+    t = int(time.time() * 1000)
+    feed({"type": "decoded", "at_ms": t, "plugin": "farm-guide", "decoder": "soul-gained", "data": {"souls": [{"pet": int(ids[5]), "amount": 1}]}})
+    page.wait_for_timeout(60)
+    page.evaluate("() => window.__emitHost('source', { feed: false })")
+    page.evaluate("([x, at]) => window.__pluginEvent('decoded:soul-gained', { souls: [{ pet: x, amount: 1 }] }, at)", [int(ids[5]), t + 40])
+    page.wait_for_timeout(1000)
+    got = own("pets-server-1012")["points"].get(str(ids[5]))
+    n = sum(1 for e in own("log-server-1012")["log"] if e[1] == int(ids[5]))
+    check("Flav-Toolkit → A2 Tools mid-pickup: the same pickup counts once", got == 1 and n == 1, (got, n))
+    # … and a later pickup from A2 Tools counts as usual
+    page.evaluate("(x) => window.__pluginEvent('decoded:soul-gained', { souls: [{ pet: x, amount: 1 }] })", int(ids[5]))
+    page.wait_for_timeout(800)
+    check("Flav-Toolkit → A2 Tools: the next pickup counts", own("pets-server-1012")["points"].get(str(ids[5])) == 2)
+    page.close()
+
+    # A2 Tools' resync merges its soul log with ours (a long history must not push out Flav-Toolkit's pickups)
+    plog = [[now - 9_000_000 + i * 1000, pet, 1, "A", "L"] for i in range(5200)]
+    feedonly = [[now - 600_000 + i * 1000, int(ids[1]), 1, "F", "L"] for i in range(3)]
+    p0 = {"levels": {str(pet): 2}, "points": {str(pet): 5}, "syncedAt": now - 9_500_000}
+    files = {"own": {"pets-server-1012": json.dumps({**p0, "syncedAt": now - 900_000}), "log-server-1012": json.dumps({"log": plog[-4000:] + feedonly, "levelLog": []}), "last": json.dumps("server-1012")},
+             "plugin": {"pets-server-1012": json.dumps(p0), "log-server-1012": json.dumps({"log": plog, "levelLog": []}), "last": json.dumps("server-1012"),
+                        "bridge": json.dumps({"v": 2, "run": 1, "seq": 0, "character": CHAR, "events": []})}}
+    page = boot(browser, files)
+    own = lambda k: page.evaluate("(k) => window.__files.own[k] ? JSON.parse(window.__files.own[k]) : null", k)
+    page.evaluate("() => window.__emitHost('bridge', window.__files.plugin.bridge)")
+    page.wait_for_timeout(2200)
+    page.evaluate("(x) => window.__pluginEvent('decoded:soul-gained', { souls: [{ pet: x, amount: 1 }] })", pet)
+    page.wait_for_timeout(1200)
+    left = sum(1 for e in own("log-server-1012")["log"] if e[3] == "F")
+    check("A2 Tools' resync keeps the pickups only Flav-Toolkit saw", left == 3, left)
+    page.close()
+
+    # a recording Flav-Toolkit plays is not your play
+    page = boot(browser, source={"feed": True, "core": "0.3.0", "status": {"capturing": True, "game": True, "source": "replay", "text": "Playing a recording"}})
+    page.evaluate("(e) => window.__emitHost('feed', e)", {"type": "my_server", "at_ms": now, "server": 1012})
+    page.evaluate("(e) => window.__emitHost('feed', e)", {"type": "decoded", "at_ms": now, "plugin": "farm-guide", "decoder": "pet-list", "data": pets_list(ids[:5])})
+    page.wait_for_timeout(700)
+    check("Flav-Toolkit playing a recording: nothing is recorded", not any(k.startswith("pets-") for k in page.evaluate("() => Object.keys(window.__files.own)")))
     page.close()
 
     # moving from A2 Tools to Flav-Toolkit: the plugin's newer counts and log carry over

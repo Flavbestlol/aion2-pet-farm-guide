@@ -71,6 +71,13 @@
     lastAt = Math.max(lastAt, Number(e.at) || 0);
     // Flav-Toolkit is the source: the bridge is read (so nothing replays later) but not handed on
     if (OV.active !== "a2") return;
+    // Flav-Toolkit just stopped: a pickup it already handed on, which A2 Tools brings a moment
+    // later, is the same pickup (each stamps its own capture time): counted once
+    if ((e.ev === "decoded:soul-gained" || e.ev === "decoded:level-up") && Array.isArray(OV.recentFeed)) {
+      const sig = JSON.stringify(e.data), at = Number(e.at) || 0;
+      const i = OV.recentFeed.findIndex((r) => r.ev === e.ev && r.sig === sig && Math.abs(r.at - at) <= 1500);
+      if (i >= 0) { OV.recentFeed.splice(i, 1); return; }
+    }
     lastEventAt = Date.now();
     if (e.ev === "character") fire("character", e.data);
     else fire(e.ev, e.data, { character: e.character, at: e.at });
