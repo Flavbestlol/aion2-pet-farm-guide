@@ -71,7 +71,7 @@ fn main() {
 
     feed.publish(&decoded(2000, "soul-gained", json!({ "souls": [{ "pet": 1015, "amount": 1 }, { "pet": 1120, "amount": 1 }] })));
     feed.publish(&ev(2001, EventKind::Died { id: 9 })); // not asked for
-    feed.set_status(CoreStatus { capturing: true, game: true, source: Source::Live, text: "Reading the game".into() });
+    feed.set_status(CoreStatus { capturing: true, game: true, source: Source::Live, text: "Reading the game".into(), exchange: None });
     let _ = feed.show("pet-farm-guide", Show::Settings);
     let got = page(&mut client, Duration::from_millis(700));
     let names: Vec<&str> = got.iter().map(|(n, _)| *n).collect();
@@ -79,5 +79,9 @@ fn main() {
     check("only what we asked for", !got.iter().any(|(_, v)| v["type"] == "died"), &names);
     check("the core's status → feed-status", got.iter().any(|(n, v)| *n == "feed-status" && v["capturing"] == true && v["text"] == "Reading the game"), &names);
     check("the hub's Settings → show settings", got.iter().any(|(n, v)| *n == "show" && v == "settings"), &names);
+    check("we ask for the dock's toggle, and the core grants it", client.features.iter().any(|f| f == "toggle"), &client.features);
+    let _ = feed.show("pet-farm-guide", Show::Toggle);
+    let got = page(&mut client, Duration::from_millis(500));
+    check("the dock's icon → show toggle", got.iter().any(|(n, v)| *n == "show" && v == "toggle"), &got);
     std::process::exit(if ok { 0 } else { 1 });
 }

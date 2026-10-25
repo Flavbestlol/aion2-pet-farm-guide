@@ -6,7 +6,7 @@ publish = false
 
 # The same Flav-Toolkit commit the overlay pins (overlay/src-tauri/Cargo.toml)
 [dependencies]
-flav-sdk = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
-flav-feed = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
-flav-events = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
+flav-sdk = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "affd84cbd15f75488baefb2f0c74df6f4f4f03f8" }
+flav-feed = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "affd84cbd15f75488baefb2f0c74df6f4f4f03f8" }
+flav-events = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "affd84cbd15f75488baefb2f0c74df6f4f4f03f8" }
 serde_json = "1"

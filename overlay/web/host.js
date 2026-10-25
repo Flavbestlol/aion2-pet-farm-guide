@@ -148,7 +148,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.22.1";
+  const VERSION = "1.22.2";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -465,7 +465,11 @@
 
   // ── only while AION 2 runs (and is in front, by default) ──
   let game = { running: true, front: true }, shown = true, hideTimer = 0;
+  // put away from Flav-Toolkit's dock (its icon's second click): hidden, tip and all, until the
+  // dock's icon, the hub's Open or the tray's "Open the guide" brings it back. Not kept across starts.
+  let dockHidden = false;
   function wantShown() {
+    if (dockHidden) return false;
     const how = prefs().ovShow || "front";
     return how === "always" || (game.running && (how === "running" || game.front));
   }
@@ -474,7 +478,7 @@
     clearTimeout(hideTimer);
     if (want) return setShown(true);
     // a short grace, so Alt+Tab past it or a click on A2 Tools doesn't make it blink
-    hideTimer = setTimeout(() => setShown(wantShown()), game.running ? 1200 : 0);
+    hideTimer = setTimeout(() => setShown(wantShown()), game.running && !dockHidden ? 1200 : 0);
   }
   function setShown(on) {
     if (on === shown) return;
@@ -484,6 +488,19 @@
     if (on) requestAnimationFrame(() => { layout(); if (window.FG_retryTour) window.FG_retryTour(); });
     sendHits();
   }
+  // the dock's icon (Flav-Toolkit 0.12.0, the feed's `toggle`): the guide open → put it away;
+  // put away or folded into its tip → bring it back, open
+  OV.dockToggle = () => {
+    const open = shown && !dockHidden && !(window.FG_isFolded && window.FG_isFolded());
+    if (open) dockHidden = true;
+    else {
+      dockHidden = false;
+      if (window.FG_fold) window.FG_fold(false);
+    }
+    updateShow();
+  };
+  OV.unhide = () => { if (dockHidden) { dockHidden = false; updateShow(); } };
+  OV.dockHidden = () => dockHidden;
   let recapDone = false;
   function maybeRecap() {
     if (recapDone || !window.FG_recap) return;
@@ -591,7 +608,7 @@
   });
   listen("tray", (e) => {
     const a = String(e.payload || "");
-    if (a === "open") window.FG_fold && window.FG_fold(false);
+    if (a === "open") { OV.unhide(); if (window.FG_fold) window.FG_fold(false); }
     if (a === "lock") window.FG_toggleLock && window.FG_toggleLock();
     if (a === "reset") { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); }
     if (a === "quit") shutdown();

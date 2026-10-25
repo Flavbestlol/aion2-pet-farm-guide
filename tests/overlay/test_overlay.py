@@ -285,6 +285,30 @@ with sync_playwright() as p:
     check("tour: the tip hides with the guide when the game leaves", not page.evaluate("() => getComputedStyle(document.querySelector('.tourcard')).visibility === 'visible'"))
     page.close()
 
+    # ── Flav-Toolkit's dock (core 0.12.0, `show toggle`): its icon opens the guide, a second click puts it away ──
+    feedsrc = {"feed": True, "core": "0.12.0", "status": {"capturing": True, "game": True, "source": "live", "text": "Reading the game"}}
+    page = boot(browser, {"own": {"prefs": json.dumps({"folded": True, "ovAutostartAsked": True, "ovMoveTold": True, "tourOff": True})}}, source=feedsrc, kind="store")
+    hidden = lambda: page.evaluate("() => document.body.classList.contains('nogame')")
+    folded = lambda: page.evaluate("() => FG_isFolded()")
+    show = lambda w: (page.evaluate("(w) => window.__emitHost('show', w)", w), page.wait_for_timeout(400))
+    check("dock: starts shown, folded into its tip", not hidden() and folded())
+    show("toggle")
+    check("dock: a click on the folded tip's icon opens the guide", not hidden() and not folded())
+    show("toggle")
+    check("dock: a second click puts it away, tip and all", hidden())
+    hits = page.evaluate("() => window.__calls.filter(([c]) => c === 'set_hits').slice(-1)[0][1].rects")
+    check("dock: put away, every click goes to the game", hits == [], hits)
+    show("toggle")
+    check("dock: a third click brings it back, open", not hidden() and not folded())
+    show("toggle")
+    show("open")
+    check("dock: the hub's Open brings it back too", not hidden() and not folded())
+    show("toggle")
+    page.evaluate("() => window.__emitHost('tray', 'open')")
+    page.wait_for_timeout(400)
+    check("dock: and the tray's Open the guide", not hidden())
+    page.close()
+
     browser.close()
 
 server.shutdown()

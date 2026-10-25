@@ -495,7 +495,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.9",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "farm-guide-overlay"
-version = "1.22.1"
+version = "1.22.2"
 dependencies = [
  "flav-sdk",
  "serde",
@@ -848,8 +848,8 @@ dependencies = [
 
 [[package]]
 name = "flav-events"
-version = "0.3.0"
-source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=edfb15552710b761024586c8a6aaa78ab8f39a3a#edfb15552710b761024586c8a6aaa78ab8f39a3a"
+version = "0.12.0"
+source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=affd84cbd15f75488baefb2f0c74df6f4f4f03f8#affd84cbd15f75488baefb2f0c74df6f4f4f03f8"
 dependencies = [
  "flav-inventory",
  "schemars 1.2.3",
@@ -859,16 +859,16 @@ dependencies = [
 
 [[package]]
 name = "flav-inventory"
-version = "0.3.0"
-source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=edfb15552710b761024586c8a6aaa78ab8f39a3a#edfb15552710b761024586c8a6aaa78ab8f39a3a"
+version = "0.12.0"
+source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=affd84cbd15f75488baefb2f0c74df6f4f4f03f8#affd84cbd15f75488baefb2f0c74df6f4f4f03f8"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "flav-sdk"
-version = "0.3.0"
-source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=edfb15552710b761024586c8a6aaa78ab8f39a3a#edfb15552710b761024586c8a6aaa78ab8f39a3a"
+version = "0.12.0"
+source = "git+https://github.com/Flavbestlol/flav-toolkit?rev=affd84cbd15f75488baefb2f0c74df6f4f4f03f8#affd84cbd15f75488baefb2f0c74df6f4f4f03f8"
 dependencies = [
  "flav-events",
  "serde_json",

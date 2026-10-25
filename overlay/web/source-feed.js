@@ -130,8 +130,10 @@
   listen("feed", (e) => onEvent(e.payload));
   listen("feed-status", (e) => { status = e.payload || null; showStatus(); });
   listen("source", (e) => onSource(e.payload));
-  // the hub's Open and Settings for Pet Farm Guide
+  // the hub's Open and Settings for Pet Farm Guide, and the dock's icon (`toggle`: open, then put away)
   listen("show", (e) => {
+    if (e.payload === "toggle") return OV.dockToggle();
+    OV.unhide();
     if (window.FG_fold) window.FG_fold(false);
     if (e.payload === "settings") setTimeout(() => $('.tabs button[data-tab="settings"]')?.click(), 250);
   });
