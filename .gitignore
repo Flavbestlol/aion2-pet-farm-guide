@@ -4,3 +4,8 @@ overlay/src-tauri/gen/
 release/
 keys/
 *.key
+tests/*/target/
+*.pcap
+*.pcapng
+*.pem
+.env

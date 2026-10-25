@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read only: nothing here writes to the repository, and no job holds a secret.
+# Releases are still built and signed by hand (tools/make_release.py).
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Repository rules (versions agree, no keys or captures, the plugin's size)
+        run: python3 tools/check.py
+      - name: Every script parses
+        run: |
+          for f in plugin/farm-guide/*.js overlay/web/*.js; do node --check "$f"; done
+      - name: JavaScript tests
+        run: node --test tests/js/*.test.js
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10
+        with:
+          toolchain: stable
+      - name: Rust tests (the parts with no window)
+        run: cargo run --quiet --manifest-path tests/setup_core/Cargo.toml
+
+  overlay:
+    name: Overlay (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10
+        with:
+          toolchain: stable
+          components: clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: overlay/src-tauri
+      - name: Assemble the page (the game's images and map tiles are not in git)
+        shell: bash
+        env:
+          FG_NO_ART: "1"
+        run: python overlay/assemble.py
+      - name: Lint
+        working-directory: overlay/src-tauri
+        run: cargo clippy --locked --release -- -D warnings
+      - name: Build
+        working-directory: overlay/src-tauri
+        run: cargo build --locked --release
+      - name: Keep the exe (no images: for checking only, not for players)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: farm-guide-overlay-windows
+          path: overlay/src-tauri/target/release/farm-guide-overlay.exe
+          retention-days: 14
