@@ -40,7 +40,8 @@ body.noplugin .tip .tipicon::after {
 }
 
 /* AION 2 isn't running (or isn't in front): nothing shows, every click goes through */
-body.ov.nogame .tip, body.ov.nogame #app, body.ov.nogame #toasts, body.ov.nogame #fx, body.ov.nogame .plus {
+body.ov.nogame .tip, body.ov.nogame #app, body.ov.nogame #toasts, body.ov.nogame #fx, body.ov.nogame .plus,
+body.ov.nogame .tourcard, body.ov.nogame .tourring {
   opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; transition: opacity 0.25s ease, visibility 0s linear 0.25s;
 }
 

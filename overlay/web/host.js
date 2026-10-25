@@ -89,6 +89,8 @@
     overlay: true,
     defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovFace: "middle" },
     onFold: () => requestAnimationFrame(layout),
+    // whether the guide is shown at all (the game in front, by default): the tour waits for it
+    isShown: () => shown,
     // where the guide is on screen (parts you moved are pinned to the screen, placed from this)
     appBox: () => lastBox,
     // hold the header where it is now (a size switch is coming)
@@ -146,7 +148,7 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.22.0";
+  const VERSION = "1.22.1";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -479,7 +481,7 @@
     shown = on;
     document.body.classList.toggle("nogame", !on);
     invoke("set_showing", { on }).catch(() => {});
-    if (on) requestAnimationFrame(layout);
+    if (on) requestAnimationFrame(() => { layout(); if (window.FG_retryTour) window.FG_retryTour(); });
     sendHits();
   }
   let recapDone = false;
