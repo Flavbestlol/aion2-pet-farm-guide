@@ -226,7 +226,7 @@
     a2.storage.set("updatefeed", r.feed).catch(() => {});
     const f = r.feed || {};
     const ov = f.overlay && newer(f.overlay.version, VERSION) ? f.overlay.version : null;
-    const pl = r.plugin && f.plugin && newer(f.plugin.version, r.plugin.version) ? { from: r.plugin.version, to: f.plugin.version } : null;
+    const pl = r.plugin && f.plugin && newer(f.plugin.version, r.plugin.version) ? { from: r.plugin.version, to: f.plugin.version, where: r.plugin.from } : null;
     if (!ov && !pl) {
       updStatus = `Up to date (${VERSION}).`;
       if (manual) card({ title: "You're up to date", body: [`Overlay ${VERSION}${r.plugin ? ` · plugin ${r.plugin.version}` : ""}.`] });
@@ -262,9 +262,9 @@
         if (!ov) {
           updBusy = false;
           if (c) c.close();
-          return pluginUpdatedCard(pl.to);
+          return pluginUpdatedCard(pl.to, pl.where);
         }
-        a2.storage.set("pluginupdated", pl.to).catch(() => {});
+        if (pl.where === "a2") a2.storage.set("pluginupdated", pl.to).catch(() => {});
       }
       if (ov) {
         if (c) { c.status("Downloading the overlay…"); c.progress(0); }
@@ -289,10 +289,11 @@
     }
   }
   let restartWhenIdle = false;
-  function pluginUpdatedCard(v) {
+  // A2 Tools has to load a plugin it reads from a folder again; Flav-Toolkit takes the new decoders by itself
+  function pluginUpdatedCard(v, from) {
     card({
       title: `Plugin updated to ${v}`,
-      body: [A2()?.pluginUpdated || "The guide's game data is up to date."],
+      body: [from === "a2" && A2() ? A2().pluginUpdated : "Flav-Toolkit reads the new version at its next start, or at once with Rescan in its hub."],
     });
   }
   // after a restart: what changed
