@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "farm-guide-overlay"
-version = "1.22.2"
+version = "1.22.3"
 dependencies = [
  "flav-sdk",
  "serde",

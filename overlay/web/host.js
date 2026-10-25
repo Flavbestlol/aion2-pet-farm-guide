@@ -141,14 +141,18 @@
       const reset = h("button", "btn", "Reset position");
       reset.type = "button";
       reset.addEventListener("click", () => { anchor = { ...DEFAULT_ANCHOR }; pinTop = null; saveAnchor(); layout(); });
+      // the overlay has no tray icon (Flav-Toolkit's dock and hub open, hide and stop it): the next screen lives here
+      const screen = h("button", "btn", "Next screen");
+      screen.type = "button";
+      screen.addEventListener("click", () => invoke("next_screen").catch(() => {}));
       const quit = h("button", "btn", "Close overlay");
       quit.type = "button";
       quit.addEventListener("click", () => shutdown());
-      btns.append(reset, quit);
+      btns.append(reset, screen, quit);
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.22.2";
+  const VERSION = "1.22.3";
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).
@@ -466,7 +470,7 @@
   // ── only while AION 2 runs (and is in front, by default) ──
   let game = { running: true, front: true }, shown = true, hideTimer = 0;
   // put away from Flav-Toolkit's dock (its icon's second click): hidden, tip and all, until the
-  // dock's icon, the hub's Open or the tray's "Open the guide" brings it back. Not kept across starts.
+  // dock's icon or the hub's Open brings it back. Not kept across starts.
   let dockHidden = false;
   function wantShown() {
     if (dockHidden) return false;
@@ -597,21 +601,13 @@
     invoke("quit").catch(() => {});
   }
 
-  // ── keys and tray ─────────────────────────────────────────────────
+  // ── keys ─────────────────────────────────────────────────
   // Ctrl+Alt+L: A2 Tools toggles its own lock on the same keys; src-tauri/src/a2 reads its new state so
   // both always agree (null when it can't tell: then we just toggle)
   listen("hotkey-lock", (e) => {
     const want = e.payload;
     const now = window.FG_isLocked ? window.FG_isLocked() : false;
     if (window.FG_toggleLock && (typeof want !== "boolean" || want !== now)) window.FG_toggleLock();
-    sendHits();
-  });
-  listen("tray", (e) => {
-    const a = String(e.payload || "");
-    if (a === "open") { OV.unhide(); if (window.FG_fold) window.FG_fold(false); }
-    if (a === "lock") window.FG_toggleLock && window.FG_toggleLock();
-    if (a === "reset") { anchor = { ...DEFAULT_ANCHOR }; saveAnchor(); layout(); }
-    if (a === "quit") shutdown();
     sendHits();
   });
 
@@ -636,7 +632,7 @@
         card({
           always: true,
           title: "The guide is ready",
-          body: ["It appears over AION 2 while you play: a small tip you can drag anywhere. Click it to open the guide.", "It waits in the tray (bottom right of the taskbar) until then."],
+          body: ["It appears over AION 2 while you play: a small tip you can drag anywhere. Click it to open the guide.", "Until then it waits out of sight; Flav-Toolkit's dock and hub open it."],
           buttons: [["Got it", null, true]],
         });
       }

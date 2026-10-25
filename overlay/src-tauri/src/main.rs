@@ -18,9 +18,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 struct State {
     rects: Mutex<Vec<[f64; 4]>>,
@@ -174,6 +172,23 @@ fn quit(app: AppHandle) {
     app.exit(0);
 }
 
+/// Settings › Overlay › Next screen: the overlay moves to the next monitor (round the list).
+#[tauri::command]
+fn next_screen(app: AppHandle) {
+    let Some(w) = app.get_webview_window("main") else { return };
+    let n = w.available_monitors().map(|m| m.len()).unwrap_or(1).max(1);
+    let s = app.state::<State>();
+    s.monitor.store((s.monitor.load(Ordering::SeqCst) + 1) % n, Ordering::SeqCst);
+    place(&app, &w);
+    // a screen with another scale resizes us after the move: place again once it settles
+    std::thread::spawn(move || {
+        for ms in [250, 700] {
+            std::thread::sleep(Duration::from_millis(ms));
+            place(&app, &w);
+        }
+    });
+}
+
 /// Cover a monitor (one pixel short of its height, so Windows doesn't treat us as a full-screen app).
 fn place(app: &AppHandle, window: &WebviewWindow) {
     let monitors = window.available_monitors().unwrap_or_default();
@@ -219,6 +234,7 @@ fn hit_test_loop(app: AppHandle) {
 /// Watch for AION 2: running at all (every 2 s), and in front (every 300 ms); tell the page on change.
 #[cfg(windows)]
 fn watch_game(app: AppHandle) {
+    use tauri::Emitter;
     let mut tick: u32 = 0;
     let mut last: Option<(bool, bool)> = None;
     let mut running = false;
@@ -415,7 +431,7 @@ fn main() {
             showing: AtomicBool::new(true),
         })
         .manage(feed::FeedState(Mutex::new(serde_json::json!({ "feed": false }))))
-        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, install::install_kind, a2::setup::plugin_setup, a2::setup::start_meter])
+        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, next_screen, open_link, install::install_kind, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);
@@ -448,49 +464,6 @@ fn main() {
             }
             place(app.handle(), &window);
             let _ = window.set_ignore_cursor_events(true);
-
-            // tray: the way back to the guide, and out
-            let open = MenuItem::with_id(app, "open", "Open the guide", true, None::<&str>)?;
-            let lock = MenuItem::with_id(app, "lock", "Lock / unlock (Ctrl+Alt+L)", true, None::<&str>)?;
-            let reset = MenuItem::with_id(app, "reset", "Put the tip back in place", true, None::<&str>)?;
-            let screen = MenuItem::with_id(app, "screen", "Move to the next screen", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Close the overlay", true, None::<&str>)?;
-            let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&open, &lock, &reset, &screen, &sep, &quit_i])?;
-            let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Farm Guide Overlay");
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
-            tray.on_menu_event(|app, e| {
-                let id = e.id.as_ref();
-                if id == "screen" {
-                    if let Some(w) = app.get_webview_window("main") {
-                        let n = w.available_monitors().map(|m| m.len()).unwrap_or(1).max(1);
-                        let s = app.state::<State>();
-                        s.monitor.store((s.monitor.load(Ordering::SeqCst) + 1) % n, Ordering::SeqCst);
-                        place(app, &w);
-                        // a screen with another scale resizes us after the move: place again once it settles
-                        let (app2, w2) = (app.clone(), w.clone());
-                        std::thread::spawn(move || {
-                            for ms in [250, 700] {
-                                std::thread::sleep(Duration::from_millis(ms));
-                                place(&app2, &w2);
-                            }
-                        });
-                    }
-                } else {
-                    let _ = app.emit("tray", id.to_string());
-                    if id == "quit" {
-                        // the page writes "gone" to the heartbeat, then quits; this is the fallback
-                        let app = app.clone();
-                        std::thread::spawn(move || {
-                            std::thread::sleep(Duration::from_millis(1500));
-                            app.exit(0);
-                        });
-                    }
-                }
-            })
-            .build(app)?;
 
             let h = app.handle().clone();
             std::thread::spawn(move || hit_test_loop(h));

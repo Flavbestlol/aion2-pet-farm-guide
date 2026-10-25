@@ -1,4 +1,4 @@
-AION 2 PET FARM GUIDE · OVERLAY 1.22.2
+AION 2 PET FARM GUIDE · OVERLAY 1.22.3
 ======================================
 
 The Farm Guide drawn straight over AION 2: no window, no box, no background you didn't choose.
@@ -28,7 +28,8 @@ START
   A2 Tools as the backup reader: load this folder's farm-guide folder in A2 Tools (Settings >
   Plugins > Plugin developer mode > Load plugin folder...).
   The paw in Flav-Toolkit's dock opens the guide; click it again to put the guide away (tip and
-  all) until the next click, the hub's Open or the tray's Open the guide.
+  all) until the next click or the hub's Open. The overlay has no tray icon of its own: the dock
+  and the hub open it, the hub stops it.
 
 UPDATES
   From Flav-Toolkit: its hub tells you when a new version is out (Get add-ons, the dock, a toast)
@@ -42,7 +43,7 @@ USE
   - Drag the tip, or the guide by its title, to anywhere on the screen. Let go near an edge and it
     snaps to it. The guide grows out of the edge it's docked to: on the left it fades toward the
     right, on the right it mirrors (Settings > Docked side: Auto / Left / Right).
-  - Lock: click the padlock, or the tray icon's Lock. With A2 Tools, Ctrl+Alt+L locks and unlocks
+  - Lock: click the padlock. With A2 Tools, Ctrl+Alt+L locks and unlocks
     too, together with A2 Tools' own lock. Locked: everything lets clicks through to the game
     except the padlock (click it to unlock). Folded and locked: Alt+click the tip to open it.
   - Layout: the pencil by the padlock. Move, resize or hide any part of the guide, and click a part
@@ -73,8 +74,8 @@ SMART
   - Under the map: round/square, loop on/off, monster icons on/off, and hide (it folds away). Drag the map's corner grip
     to resize it; double-click the grip for the default size.
   - Settings tab: theme (HUD / Apple / In-game / Classic), size, background (0 = fully clear), and more.
-  - Tray icon (next to the clock): open the guide, lock, put the tip back, move to the next
-    screen, close the overlay.
+  - Settings > Overlay: Reset position (the tip back in place), Next screen (with more than one
+    monitor), Close overlay.
   - An orange dot on the tip = nothing is being recorded, and the guide says why: Flav-Toolkit
     isn't reading the game (the guide shows Flav-Toolkit's own reason), or, with A2 Tools, the
     Farm Guide plugin isn't running there (A2 Tools > Settings > Plugins > Open).
