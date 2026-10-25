@@ -1,7 +1,7 @@
 """Repository rules, checked in CI (and before a release): python3 tools/check.py
 
 - every JSON file parses;
-- the overlay's version is the same in Cargo.toml, Cargo.lock, tauri.conf.json and host.js;
+- the overlay's version is the same in Cargo.toml, Cargo.lock, tauri.conf.json, host.js and its README.txt;
 - no key, certificate, capture or recording is tracked;
 - the plugin stays under A2 Tools' 8 MB catalogue limit (its game images are not in git: counted
   only when present).
@@ -32,17 +32,19 @@ for f in files:
         except Exception as e:  # noqa: BLE001
             bad(f"{f}: not valid JSON ({e})")
 
-# the overlay's version, four places
+# the overlay's version, five places
 tauri = ROOT / "overlay/src-tauri"
 cargo = re.search(r'^version\s*=\s*"([^"]+)"', (tauri / "Cargo.toml").read_text(), re.M)
 conf = json.loads((tauri / "tauri.conf.json").read_text()).get("version")
 host = re.search(r'const VERSION = "([^"]+)"', (ROOT / "overlay/web/host.js").read_text())
 lock = re.search(r'name = "farm-guide-overlay"\nversion = "([^"]+)"', (tauri / "Cargo.lock").read_text())
+readme = re.match(r"AION 2 PET FARM GUIDE · OVERLAY (\S+)\n", (ROOT / "overlay/README.txt").read_text(encoding="utf-8"))
 versions = {
     "Cargo.toml": cargo and cargo.group(1),
     "Cargo.lock": lock and lock.group(1),
     "tauri.conf.json": conf,
     "host.js": host and host.group(1),
+    "README.txt": readme and readme.group(1),
 }
 if len(set(versions.values())) != 1 or None in versions.values():
     bad(f"the overlay's version differs: {versions}")

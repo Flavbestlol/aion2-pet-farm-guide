@@ -5,7 +5,8 @@
                            [--installer installer/setup.nsi] [--out release] [--key keys/farm-guide-release.key]
 
 Writes into <out>/v<plugin version>/:
-  Farm-Guide-Setup-<v>.exe         the installer: plugin and overlay, added to A2 Tools for you (needs makensis)
+  Farm-Guide-Setup-<v>.exe         the installer: plugin and overlay, linked to Flav-Toolkit's hub and added
+                                   to A2 Tools if it's there (needs makensis)
   Farm-Guide-Plugin-<v>.zip        the plugin (top folder farm-guide/), for updates and by-hand installs
   Farm-Guide-Overlay-<v>.zip       the overlay folder, for new installs
   Farm-Guide-Overlay.exe           the overlay alone, for the overlay's own updater
@@ -21,7 +22,9 @@ from pathlib import Path
 REPO = "Flavbestlol/aion2-pet-farm-guide"
 PLUGIN_TYPES = {".html", ".js", ".css", ".json", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".md", ".txt"}
 MAX_PLUGIN = 8 * 1024 * 1024  # A2 Tools' catalog limit
-OVERLAY_FILES = ["Farm Guide Overlay.exe", "README.txt"]
+ROOT = Path(__file__).resolve().parent.parent
+# the overlay's README.txt comes from the repository (tools/check.py holds its version to the overlay's)
+README = ROOT / "overlay" / "README.txt"
 
 
 def sha256(p):
@@ -40,7 +43,7 @@ def main():
     ap.add_argument("--overlay", required=True)
     ap.add_argument("--overlay-version", required=True)
     ap.add_argument("--notes", required=True)
-    ap.add_argument("--installer", default=str(Path(__file__).resolve().parent.parent / "installer" / "setup.nsi"))
+    ap.add_argument("--installer", default=str(ROOT / "installer" / "setup.nsi"))
     ap.add_argument("--out", default="release")
     ap.add_argument("--key", default=str(Path(__file__).with_name("keys") / "farm-guide-release.key"))
     a = ap.parse_args()
@@ -75,9 +78,8 @@ def main():
     overlay = Path(a.overlay)
     ozip = out / f"Farm-Guide-Overlay-{ov}.zip"
     with zipfile.ZipFile(ozip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for name in OVERLAY_FILES:
-            if (overlay / name).is_file():
-                z.write(overlay / name, f"Farm Guide Overlay/{name}")
+        z.write(overlay / "Farm Guide Overlay.exe", "Farm Guide Overlay/Farm Guide Overlay.exe")
+        z.write(README, "Farm Guide Overlay/README.txt")
     exe = out / "Farm-Guide-Overlay.exe"
     exe.write_bytes((overlay / "Farm Guide Overlay.exe").read_bytes())
     if not exe.read_bytes().startswith(b"MZ"):
@@ -112,8 +114,8 @@ def main():
     (out / "latest.json.sig").write_text(sign(body, a.key))
     (out / "RELEASE.md").write_text(
         f"## AION 2 Pet Farm Guide {pv}\n\n{a.notes}\n\n"
-        f"- **New here?** Download **`{setup.name}`** and run it. It installs the guide and adds it to the A2 Tools DPS Meter for you.\n"
-        f"- **Already installed?** The overlay offers this update by itself (Settings › Overlay › Updates). Running the new setup works too.\n"
+        f"- **New here?** Download **`{setup.name}`** and run it. It installs the guide, links it to Flav-Toolkit's hub (0.3 or later, the main way), and adds it to the A2 Tools DPS Meter if you have it (the backup).\n"
+        f"- **Already installed?** The overlay offers this update by itself (Settings › Overlay › Updates). Running the new setup works too. With Flav-Toolkit, Get add-ons links to this page.\n"
         f"- **By hand?** `{pzip.name}` (the plugin) and `{ozip.name}` (the overlay): see *Install by hand* in the README.\n"
         f"- `{exe.name}`, `latest.json` and `latest.json.sig` are what the overlay's updater downloads. You don't need them.\n\n"
         f"Plugin {pv} · Overlay {ov}.\n",
