@@ -1,5 +1,5 @@
 // The overlay's A2 Tools settings edits (src-tauri/src/setup_core.rs, included as is).
-#[path = "../../../overlay/src-tauri/src/setup_core.rs"]
+#[path = "../../../overlay/src-tauri/src/a2/setup_core.rs"]
 mod setup_core;
 use setup_core::*;
 use std::collections::BTreeMap;

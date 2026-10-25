@@ -15,16 +15,17 @@ for d in ['img', 'tiles']:
         (UI / d).mkdir()
     else:
         shutil.copytree(PLUGIN / d, UI / d)
-for f in ['host.js', 'overlay.css', 'apple.css', 'hud.css']:
+for f in ['host.js', 'source-a2.js', 'overlay.css', 'apple.css', 'hud.css']:
     shutil.copy(WEB / f, UI / f)
 html = (PLUGIN / 'index.html').read_text(encoding='utf-8')
-html = html.replace('<script src="/_sdk/a2.js"></script>', '<script src="host.js"></script>')
+# the host stands in for A2 Tools' SDK; then the sources of game records (A2 Tools: source-a2.js)
+html = html.replace('<script src="/_sdk/a2.js"></script>', '<script src="host.js"></script>\n    <script src="source-a2.js"></script>')
 html = html.replace('\n    <script src="bridge.js"></script>', '')
 html = html.replace('<link rel="stylesheet" href="ingame.css" />', '<link rel="stylesheet" href="ingame.css" />\n    <link rel="stylesheet" href="apple.css" />\n    <link rel="stylesheet" href="overlay.css" />\n    <link rel="stylesheet" href="hud.css" />')
 html = html.replace('<title>Farm Guide</title>', '<title>Farm Guide Overlay</title>')
-notice = ('\n      <div class="ovnotice" hidden><b>Nothing is being recorded.</b> Open Farm Guide in A2 Tools '
-          '(Settings → Plugins → Open). While this overlay runs it tucks itself away and keeps recording.</div>')
+# "nothing is being recorded": the source in use fills in what to do
+notice = '\n      <div class="ovnotice" hidden></div>'
 html = html.replace('      </header>', '      </header>' + notice, 1)
-assert 'host.js' in html and 'overlay.css' in html and 'ovnotice' in html and 'bridge.js' not in html
+assert 'host.js' in html and 'source-a2.js' in html and 'overlay.css' in html and 'ovnotice' in html and 'bridge.js' not in html
 (UI / 'index.html').write_text(html, encoding='utf-8')
 print('ui assembled', sum(1 for _ in UI.rglob('*')), 'files')

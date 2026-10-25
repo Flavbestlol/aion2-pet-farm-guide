@@ -2,21 +2,19 @@
 // the game's focus. The mouse goes through it to the game everywhere except over the tip and the
 // guide (the page tells us where those are), so it behaves like part of the game's HUD.
 //
-// Data: the Farm Guide plugin in A2 Tools writes its records as files under
-// %APPDATA%\com.a2tools.dps-meter\plugin-data\farm-guide. We watch bridge.json there and pass each
-// change to the page; we write only overlay.json there (our heartbeat). Our own settings live in
-// %APPDATA%\app.farmguide.overlay.
+// Data: game records come from a source. Today that is the Farm Guide plugin in A2 Tools (a2/:
+// everything about A2 Tools is there). Our own settings live in %APPDATA%\app.farmguide.overlay.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-mod setup;
-mod setup_core;
+mod a2;
+mod install;
 mod update;
 mod update_core;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -233,31 +231,10 @@ fn watch_game(app: AppHandle) {
     }
 }
 
-/// Pass each new version of the plugin's bridge.json to the page.
-fn watch_bridge(app: AppHandle) {
-    let path = app.state::<State>().plugin_dir.join("bridge.json");
-    let mut last: Option<(SystemTime, u64)> = None;
-    loop {
-        std::thread::sleep(Duration::from_millis(80));
-        let Ok(meta) = std::fs::metadata(&path) else { continue };
-        let stamp = (meta.modified().unwrap_or(SystemTime::UNIX_EPOCH), meta.len());
-        if last == Some(stamp) {
-            continue;
-        }
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            // a half-written file fails to parse in the page; it then waits for the next change
-            if serde_json::from_str::<serde_json::Value>(&text).is_ok() {
-                last = Some(stamp);
-                let _ = app.emit("bridge", text);
-            }
-        }
-    }
-}
-
 #[cfg(windows)]
 mod win {
     //! Windows only: the game's window, focus, the cursor, start with Windows, one copy at a time.
-    //! (No keyboard hook: Ctrl+Alt+L is A2 Tools' own key, and we follow its lock; see watch_a2_lock.)
+    //! (No keyboard hook: Ctrl+Alt+L is A2 Tools' own key, and we follow its lock; see a2::watch_lock.)
     use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
     use windows_sys::Win32::System::Threading::CreateMutexW;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
@@ -392,59 +369,20 @@ mod win {
 }
 
 /// A2 Tools' own click-through lock, from its settings file (None if it can't be read).
-pub fn a2_locked() -> Option<bool> {
-    let appdata = std::env::var_os("APPDATA").map(PathBuf::from)?;
-    let text = std::fs::read_to_string(appdata.join("com.a2tools.dps-meter").join("settings.json")).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
-    match v.get("dpsMeter.overlayLocked")? {
-        serde_json::Value::Bool(b) => Some(*b),
-        serde_json::Value::String(s) => Some(s == "true"),
-        _ => None,
-    }
-}
-
-/// Ctrl+Alt+L is A2 Tools' lock key (whatever key it's set to, in fact): when A2 Tools' lock changes,
-/// it saves it to its settings, and we follow, so one press locks both. Nothing of ours reads the
-/// keyboard.
-fn watch_a2_lock(app: AppHandle) {
-    let Some(path) = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("com.a2tools.dps-meter").join("settings.json")) else { return };
-    let mut stamp: Option<SystemTime> = None;
-    let mut last = a2_locked();
-    loop {
-        std::thread::sleep(Duration::from_millis(250));
-        let Ok(modified) = std::fs::metadata(&path).and_then(|m| m.modified()) else { continue };
-        if stamp == Some(modified) {
-            continue;
-        }
-        stamp = Some(modified);
-        let now = a2_locked();
-        if now.is_some() && now != last {
-            let _ = app.emit("hotkey-lock", now);
-        }
-        if now.is_some() {
-            last = now;
-        }
-    }
-}
-
 fn main() {
     // the installer's commands (see setup.rs) run and exit before anything else
-    if let Some(code) = update::cli().or_else(setup::cli) {
+    if let Some(code) = update::cli().or_else(install::cli).or_else(a2::setup::cli) {
         std::process::exit(code);
     }
     #[cfg(windows)]
     if win::already_running() {
         return;
     }
-    setup::sync_installed_version();
+    install::sync_installed_version();
     update::tidy_after_update();
-    let appdata = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    let plugin_dir = std::env::var_os("FG_PLUGIN_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| appdata.join("com.a2tools.dps-meter").join("plugin-data").join("farm-guide"));
-    let own_dir = appdata.join("app.farmguide.overlay");
+    let plugin_dir = a2::plugin_dir();
+    let own_dir = install::own_dir();
     let _ = std::fs::create_dir_all(&own_dir);
-    let _ = std::fs::create_dir_all(&plugin_dir);
 
     tauri::Builder::default()
         .manage(State {
@@ -458,7 +396,7 @@ fn main() {
             game_front: AtomicBool::new(cfg!(not(windows))),
             showing: AtomicBool::new(true),
         })
-        .invoke_handler(tauri::generate_handler![read_file, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, setup::plugin_setup, setup::start_meter])
+        .invoke_handler(tauri::generate_handler![read_file, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);
@@ -538,10 +476,7 @@ fn main() {
 
             let h = app.handle().clone();
             std::thread::spawn(move || hit_test_loop(h));
-            let h = app.handle().clone();
-            std::thread::spawn(move || watch_bridge(h));
-            let h = app.handle().clone();
-            std::thread::spawn(move || watch_a2_lock(h));
+            a2::start(app.handle());
             #[cfg(windows)]
             {
                 let h = app.handle().clone();
