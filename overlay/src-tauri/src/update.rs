@@ -82,32 +82,12 @@ fn verified_feed() -> Result<Value, String> {
     serde_json::from_slice(&body).map_err(|e| format!("the release notes are unreadable ({e})"))
 }
 
-/// Where A2 Tools loads Farm Guide from a folder (developer mode), and that copy's version.
-fn plugin_folder() -> Option<(PathBuf, String)> {
-    let appdata = std::env::var_os("APPDATA").map(PathBuf::from)?;
-    let text = std::fs::read_to_string(appdata.join("com.a2tools.dps-meter").join("settings.json")).ok()?;
-    let settings: Value = serde_json::from_str(&text).ok()?;
-    let folders: Vec<String> = match settings.get("dpsMeter.devPlugins")? {
-        Value::String(s) => serde_json::from_str(s).ok()?,
-        Value::Array(a) => a.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
-        _ => return None,
-    };
-    folders.into_iter().map(PathBuf::from).find_map(|dir| {
-        let m: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).ok()?).ok()?;
-        if m.get("id")?.as_str()? != PLUGIN_ID {
-            return None;
-        }
-        let version = m.get("version")?.as_str()?.to_string();
-        Some((dir, version))
-    })
-}
-
 /// What's out there: the signed feed, this overlay's version, and the plugin folder we may update.
 #[tauri::command]
 pub async fn update_check() -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let feed = verified_feed()?;
-        let plugin = plugin_folder().map(|(dir, v)| json!({ "dir": dir.display().to_string(), "version": v }));
+        let plugin = crate::a2::plugin_folder().map(|(dir, v)| json!({ "dir": dir.display().to_string(), "version": v }));
         Ok(json!({ "feed": feed, "overlay": env!("CARGO_PKG_VERSION"), "plugin": plugin }))
     })
     .await
@@ -223,7 +203,7 @@ pub fn tidy_after_update() {
 #[tauri::command]
 pub async fn update_plugin(app: AppHandle) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let (dir, _) = plugin_folder().ok_or("Farm Guide isn't loaded from a folder: A2 Tools updates it")?;
+        let (dir, _) = crate::a2::plugin_folder().ok_or("Farm Guide isn't loaded from a folder: A2 Tools updates it")?;
         let feed = verified_feed()?;
         let p = feed.get("plugin").ok_or("this release has no plugin")?;
         let url = p.get("url").and_then(Value::as_str).ok_or("no download link")?;

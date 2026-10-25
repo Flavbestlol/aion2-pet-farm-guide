@@ -143,6 +143,7 @@ Section "-Finish setting up" SecSetup
     ExecWait '"$INSTDIR\${EXE}" --setup-autostart off'
   ${EndIf}
 
+  ; ── A2 Tools only (goes with overlay/src-tauri/src/a2 when A2 Tools support is dropped) ──
   ; the plugin, into A2 Tools (it can't be changed while A2 Tools is open)
   retry:
   ExecWait '"$INSTDIR\${EXE}" --setup-register "$INSTDIR\farm-guide"' $Meter
@@ -208,6 +209,7 @@ Section "Uninstall"
   Sleep 300
   ${If} ${FileExists} "$INSTDIR\${EXE}"
     retry:
+    ; A2 Tools only: take the plugin folder out of A2 Tools' list
     ExecWait '"$INSTDIR\${EXE}" --setup-unregister "$INSTDIR\farm-guide"' $0
     ${If} $0 == 2
       MessageBox MB_RETRYCANCEL|MB_ICONINFORMATION "The A2 Tools DPS Meter is open.$\r$\n$\r$\nClose it, then click Retry, so the guide can take itself out of it.$\r$\n$\r$\nOr click Cancel and remove it later in the meter: Settings › Plugins." /SD IDCANCEL IDRETRY retry

@@ -1,8 +1,6 @@
 // Farm Guide Overlay: the host page. It stands in for A2 Tools' SDK (window.a2) so the same guide
 // code runs here, in a transparent window over the game:
-//  - game records come from the plugin's bridge.json (A2 Tools' plugin-data folder), the moment
-//    the plugin writes them;
-//  - counts and the soul log are read from the plugin's own saved files (it records; we show);
+//  - game records come from a source: A2 Tools' plugin (source-a2.js, everything about A2 Tools);
 //  - our own settings and route position live in the overlay's folder;
 //  - the tip and the guide float anywhere on screen; everything else lets clicks through to the game.
 (function () {
@@ -19,40 +17,38 @@
       try { fn(data, { character: meta.character ?? null, at: meta.at ?? null }); } catch (e) { console.error(e); }
     }
   };
-  // the plugin's records: counts, soul log, which server was played last
-  const FROM_PLUGIN = /^(pets-|log-|last$)/;
   const read = async (scope, key) => {
     const t = await invoke("read_file", { scope, key }).catch(() => null);
     if (t == null || t === "") return null;
     try { return JSON.parse(t); } catch { return null; }
   };
+  // what a source of game records may use (source-a2.js); it adds itself to sources
+  const OV = (window.FG_OV = { invoke, listen, read, fire, card: (spec) => card(spec), prefs: () => prefs(), version: () => VERSION, sources: {} });
+  const A2 = () => OV.sources.a2 || null;
   window.a2 = Object.freeze({
     on(ev, fn) { (handlers[ev] ||= []).push(fn); },
     storage: Object.freeze({
       async get(key) {
-        if (FROM_PLUGIN.test(key)) return read("plugin", key);
+        if (A2()?.owns(key)) return A2().readOwned(key);
         const own = await read("own", key);
         if (own != null || key !== "prefs") return own;
-        // first start: take the plugin's choices, but start as a tip in the Apple theme
-        const p = await read("plugin", "prefs");
-        if (!p) return null;
-        for (const k of ["theme", "tip", "folded", "tipPos", "locked", "tipAuto"]) delete p[k];
-        return p;
+        // first start: the source may have the player's choices already
+        return (await A2()?.firstPrefs?.()) ?? null;
       },
       async set(key, value) {
-        if (FROM_PLUGIN.test(key)) return; // the plugin owns those
+        if (A2()?.owns(key)) return; // the source owns those
         await invoke("write_file", { scope: "own", key, value: JSON.stringify(value) });
       },
     }),
     notify: async () => true,
     window: Object.freeze({ show: async () => {}, hide: async () => {} }),
-    ready: async () => { startBridge(); return true; },
+    ready: async () => { A2()?.start(); return true; },
   });
 
   // ── the overlay's own settings, shown in the guide's Settings tab ──
   window.FG_HOST = {
     overlay: true,
-    defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, keepPlugin: false, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle", pluginView: "hidden" },
+    defaults: { theme: "hud", tip: true, folded: true, tipIdle: 3, tipAuto: 0, ovSide: "auto", ovScale: 1, ovBg: 0.66, ovShow: "front", ovAutostart: false, ovAutostartAsked: false, ovUpdates: "ask", ovFace: "middle" },
     onFold: () => requestAnimationFrame(layout),
     // where the guide is on screen (parts you moved are pinned to the screen, placed from this)
     appBox: () => lastBox,
@@ -89,9 +85,9 @@
       now.addEventListener("click", () => checkUpdates(true));
       upd.append(seg("ovUpdates", [["ask", "Ask first"], ["auto", "Automatic"], ["off", "Off"]], () => { if (prefs.ovUpdates !== "off") checkUpdates(false); }), now);
       row("Updates", `From the project's GitHub page, signed by the publisher. ${updStatus}`, upd);
-      row("A2 Tools window", "While the overlay runs. Hidden: out of the way, still recording. Card: a small recording card. Full: the whole guide", seg("pluginView", [["hidden", "Hidden"], ["card", "Card"], ["full", "Full"]], beat));
+      A2()?.settings?.({ row, seg, toggle, h, prefs, savePrefs });
       const k = h("span", "chip-stat", "Ctrl+Alt+L");
-      row("Lock / unlock", "Same keys as A2 Tools, and they lock together. Locked: clicks go through to the game, except the padlock: click it to unlock", k);
+      row("Lock / unlock", A2()?.lockHint || "Locked: clicks go through to the game, except the padlock: click it to unlock", k);
       const btns = h("div", "btnrow");
       const reset = h("button", "btn", "Reset position");
       reset.type = "button";
@@ -153,52 +149,6 @@
     });
   }
 
-  // ── after the installer: it adds the plugin to A2 Tools, and the rest finishes here (see setup.rs) ──
-  // A2 Tools was open (its settings can't be changed then) or isn't installed yet: say what to do,
-  // and carry on by ourselves once it's done.
-  let setupShown = "", waitCard = null;
-  async function setupCheck() {
-    const s = String(await invoke("plugin_setup").catch(() => "none"));
-    const again = (ms) => setTimeout(setupCheck, ms);
-    if (s === "waiting") {
-      if (setupShown !== "waiting") {
-        setupShown = "waiting";
-        waitCard = card({
-          always: true,
-          title: "One last step",
-          body: ["Close the A2 Tools DPS Meter for a moment, so the guide can add itself to it.", "Then start the meter again. This happens only once."],
-          buttons: [["OK", () => { waitCard = null; }, true]],
-        });
-      }
-      again(3000);
-    } else if (s === "nometer") {
-      if (!setupShown) {
-        setupShown = "nometer";
-        card({
-          always: true,
-          title: "Get the A2 Tools DPS Meter",
-          body: ["The guide runs inside the free A2 Tools DPS Meter, which isn't on this PC yet.", "Install it and start it once. The guide finishes setting itself up after that."],
-          buttons: [["Open a2tools.app", () => { invoke("open_link", { url: "https://a2tools.app" }).catch(() => {}); }, true], ["Later", null]],
-        });
-      }
-      again(10000);
-    } else if (s.startsWith("added")) {
-      if (waitCard) { waitCard.close(); waitCard = null; }
-      card({
-        always: true,
-        title: "The guide is in A2 Tools",
-        body: ["Start the A2 Tools DPS Meter again: the guide opens with it.", "Then log in to your character. The game sends your pet levels only at login."],
-        buttons: s === "added:start" ? [["Start A2 Tools", () => { invoke("start_meter").catch(() => {}); }, true], ["Later", null]] : [["OK", null, true]],
-      });
-    } else if (s.startsWith("failed:")) {
-      card({
-        always: true, tone: "warn",
-        title: "Couldn't add the guide to A2 Tools",
-        body: [s.slice(7), "Add it by hand: in A2 Tools, Settings › Plugins, turn on Plugin developer mode, click Load plugin folder… and pick the farm-guide folder inside the guide's install folder."],
-      });
-    }
-    return s;
-  }
   // what you chose in the installer ("Start with Windows"), taken once as your answer
   async function fromInstaller() {
     const inst = await read("own", "installer");
@@ -299,7 +249,7 @@
   function pluginUpdatedCard(v) {
     card({
       title: `Plugin updated to ${v}`,
-      body: ["A2 Tools picks it up when you click Check for updates (Settings › Plugins), or the next time it starts."],
+      body: [A2()?.pluginUpdated || "The guide's game data is up to date."],
     });
   }
   // after a restart: what changed
@@ -310,7 +260,7 @@
       const pv = await read("own", "pluginupdated");
       card({
         title: `Updated to ${VERSION}`,
-        body: [f && f.notes ? String(f.notes).slice(0, 400) : "The overlay is up to date.", ...(pv ? [`The plugin was updated to ${pv} too: in A2 Tools, Settings › Plugins › Check for updates.`] : [])],
+        body: [f && f.notes ? String(f.notes).slice(0, 400) : "The overlay is up to date.", ...(pv && A2() ? [A2().pluginUpdatedToo(pv)] : [])],
       });
       a2.storage.set("pluginupdated", null).catch(() => {});
     }
@@ -656,90 +606,15 @@
     if (e.target.matches && e.target.matches("input")) invoke("set_focus", { on: false }).catch(() => {});
   });
 
-  // ── the plugin's records ──────────────────────────────────────────
-  // Events are delivered once: by seq within one plugin run; across a plugin restart (new run id,
-  // seq may start again) by time. Anything older than our start is already in the saved counts.
-  let cursor = null, run = null, lastAt = Date.now() - 1000, lastEventAt = 0;
-  function deliver(e) {
-    lastAt = Math.max(lastAt, Number(e.at) || 0);
-    lastEventAt = Date.now();
-    if (e.ev === "character") fire("character", e.data);
-    else fire(e.ev, e.data, { character: e.character, at: e.at });
-  }
-  function onBridge(text) {
-    let b;
-    try { b = JSON.parse(text); } catch { return; } // caught mid-write: the next change brings it whole
-    if (!b || !Number.isFinite(b.seq)) return;
-    const list = Array.isArray(b.events) ? b.events : [];
-    if (cursor === null) {
-      cursor = b.seq;
-      run = b.run ?? null;
-      if (b.character) fire("character", b.character);
-      for (const e of list) if (Number(e.at) > lastAt) deliver(e); // arrived while we were starting
-      return;
-    }
-    if ((b.run ?? null) !== run || b.seq < cursor) {
-      run = b.run ?? null;
-      for (const e of list) if (Number(e.at) > lastAt) deliver(e);
-      cursor = b.seq;
-    } else {
-      for (const e of list) if (e.seq > cursor) deliver(e);
-      cursor = b.seq;
-    }
-    scheduleResync(1500);
-  }
-  // the plugin is the record: after it saves, take its counts and log if ours drifted
-  let resyncTimer = 0;
-  function scheduleResync(ms) {
-    clearTimeout(resyncTimer);
-    resyncTimer = setTimeout(resync, ms);
-  }
-  async function resync() {
-    if (Date.now() - lastEventAt < 2500) return scheduleResync(2500); // the plugin may not have saved the latest yet
-    const k = window.FG_key ? window.FG_key() : null;
-    if (!k || !window.FG_adopt) return;
-    const [p, l] = await Promise.all([read("plugin", `pets-${k}`), read("plugin", `log-${k}`)]);
-    window.FG_adopt(k, p, l);
-  }
-  async function startBridge() {
-    const t = await invoke("read_file", { scope: "plugin", key: "bridge" }).catch(() => null);
-    if (t) onBridge(t);
-    await listen("bridge", (e) => onBridge(String(e.payload || "")));
-    setInterval(resync, 15000);
-    setInterval(checkPlugin, 5000);
-    checkPlugin();
-  }
-
-  // ── is the plugin running in A2 Tools? ──
-  async function checkPlugin() {
-    // alive if it beat lately, or recorded something lately (Windows slows a background window's timers
-    // to about once a minute, but recording runs on game events)
-    // and a plugin that hid itself for us is fine: hidden, its timers sleep but game events still
-    // wake it to record (it beat at least once after hiding, so it was running then)
-    const [b, br, hid] = await Promise.all([read("plugin", "pluginbeat"), read("plugin", "bridge"), read("plugin", "hidbyus")]);
-    const fresh = (o) => !!o && Date.now() - Number(o.at) < 75000;
-    const hiddenOk = typeof hid === "number" && hid > 0 && !!b && Number(b.at) >= hid - 1000;
-    const ok = fresh(b) || fresh(br) || hiddenOk;
-    const n = $(".ovnotice");
-    if (n) n.hidden = ok;
-    document.body.classList.toggle("noplugin", !ok);
-  }
-
-  // ── our heartbeat: while we run, the plugin shows a small recording card and stays quiet ──
-  function beat() {
-    const p = prefs();
-    const view = p.pluginView || (p.keepPlugin ? "full" : "hidden");
-    invoke("write_file", { scope: "plugin", key: "overlay", value: JSON.stringify({ at: Date.now(), v: VERSION, pluginView: view, keepPlugin: view === "full" }) }).catch(() => {});
-  }
-  setInterval(beat, 2000);
+  // ── closing: the source says goodbye first (A2 Tools' plugin comes back), then we quit ──
   async function shutdown() {
-    await invoke("write_file", { scope: "plugin", key: "overlay", value: JSON.stringify({ at: 0, v: VERSION }) }).catch(() => {});
+    await Promise.resolve(A2()?.shutdown?.()).catch(() => {});
     invoke("quit").catch(() => {});
   }
 
   // ── keys and tray ─────────────────────────────────────────────────
-  // Ctrl+Alt+L: A2 Tools toggles its own lock on the same keys; the host reads its new state so both
-  // always agree (null when it can't tell: then we just toggle)
+  // Ctrl+Alt+L: A2 Tools toggles its own lock on the same keys; src-tauri/src/a2 reads its new state so
+  // both always agree (null when it can't tell: then we just toggle)
   listen("hotkey-lock", (e) => {
     const want = e.payload;
     const now = window.FG_isLocked ? window.FG_isLocked() : false;
@@ -762,7 +637,6 @@
     const a = await read("own", "anchor");
     if (a && Number.isFinite(a.fx) && Number.isFinite(a.fy)) anchor = a;
     bindDrag();
-    beat();
     setTimeout(() => {
       const p = prefs();
       if (p.ovV !== 2) { p.ovV = 2; p.theme = "hud"; window.FG_applyPrefs && window.FG_applyPrefs(); a2.storage.set("prefs", p); }
@@ -773,7 +647,7 @@
       updateShow();
       if (game.running && game.front) maybeRecap();
       const inst = await fromInstaller().catch(() => null);
-      const st = await setupCheck().catch(() => "none");
+      const st = await Promise.resolve(A2()?.setupCheck?.() ?? "none").catch(() => "none");
       if (inst && st === "none") {
         card({
           always: true,

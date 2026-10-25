@@ -25,6 +25,12 @@ jobs:
           for f in plugin/farm-guide/*.js overlay/web/*.js; do node --check "$f"; done
       - name: JavaScript tests
         run: node --test tests/js/*.test.js
+      - name: The overlay's page in a browser (how records reach the guide from each source)
+        run: |
+          pip install --quiet playwright==1.56.0
+          python3 -m playwright install --with-deps chromium
+          FG_NO_ART=1 python3 overlay/assemble.py
+          python3 tests/overlay/test_overlay.py
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, 2026-10
         with:
           toolchain: stable
