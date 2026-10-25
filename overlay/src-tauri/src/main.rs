@@ -10,6 +10,7 @@ mod a2;
 mod feed;
 mod feed_core;
 mod install;
+mod install_core;
 mod update;
 mod update_core;
 
@@ -189,7 +190,6 @@ fn place(app: &AppHandle, window: &WebviewWindow) {
 /// Mouse through to the game, except over the page's own parts.
 fn hit_test_loop(app: AppHandle) {
     let mut ignoring: Option<bool> = None;
-    let mut tick: u32 = 0;
     loop {
         std::thread::sleep(Duration::from_millis(25));
         let Some(window) = app.get_webview_window("main") else { continue };
@@ -212,14 +212,6 @@ fn hit_test_loop(app: AppHandle) {
         if ignoring != Some(ignore) && window.set_ignore_cursor_events(ignore).is_ok() {
             ignoring = Some(ignore);
         }
-        // stay above the game (a borderless game window can take the top spot when it's focused)
-        tick = tick.wrapping_add(1);
-        if tick.is_multiple_of(80) && state.showing.load(Ordering::SeqCst) {
-            #[cfg(windows)]
-            if let Ok(h) = window.hwnd() {
-                win::raise_topmost(h.0 as isize);
-            }
-        }
     }
 }
 
@@ -240,6 +232,14 @@ fn watch_game(app: AppHandle) {
         state.game_running.store(running, Ordering::SeqCst);
         state.game_front.store(front, Ordering::SeqCst);
         if last != Some((running, front)) {
+            // the game just came to the front: step above it once (a borderless game window can take
+            // the top spot when it's focused). Never on a timer: Flav-Toolkit's dock and hub stay
+            // above add-ons, and two windows re-raising themselves would fight (ADDONS.md section 8).
+            if front && last.is_none_or(|(_, was)| !was) && state.showing.load(Ordering::SeqCst) {
+                if let Some(h) = app.get_webview_window("main").and_then(|w| w.hwnd().ok()) {
+                    win::raise_topmost(h.0 as isize);
+                }
+            }
             last = Some((running, front));
             let _ = app.emit("game", (running, front));
         }
@@ -395,6 +395,7 @@ fn main() {
         return;
     }
     install::sync_installed_version();
+    install::sync_addon();
     update::tidy_after_update();
     let plugin_dir = a2::plugin_dir();
     let own_dir = install::own_dir();
@@ -413,7 +414,7 @@ fn main() {
             showing: AtomicBool::new(true),
         })
         .manage(feed::FeedState(Mutex::new(serde_json::json!({ "feed": false }))))
-        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
+        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, open_link, update::update_check, update::update_overlay, update::update_restart, update::update_plugin, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);
