@@ -35,14 +35,14 @@
 
 ## What it does
 
-The guide needs something that reads the game for it. Either works, and you can switch any time without losing your progress:
+The guide needs something that reads the game for it. **Flav-Toolkit is the main way; the A2 Tools DPS Meter is the backup** (its support goes once the project has its own DPS meter). You can switch any time without losing your progress:
 
 | Reads the game | How the guide works with it |
 |---|---|
-| **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw. The overlay keeps your progress. |
-| **[A2 Tools DPS Meter](https://a2tools.app)** | The guide's plugin runs inside the meter, reads the same things and keeps your progress; the overlay shows it over the game. |
+| **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw. The overlay keeps your progress. |
+| **[A2 Tools DPS Meter](https://a2tools.app)** (backup) | The guide's plugin runs inside the meter, reads the same things and keeps your progress; the overlay shows it over the game. |
 
-When both run, the guide reads from Flav-Toolkit. *Settings › Overlay › Game records* says which one it uses.
+When both run, the guide reads from Flav-Toolkit and A2 Tools only stands by; if Flav-Toolkit stops, the guide carries on from A2 Tools by itself. *Settings › Overlay › Game records* says which one it uses.
 
 > [!TIP]
 > With Flav-Toolkit, the overlay is what records your souls, so keep it running while you farm: turn on **Start with Flav-Toolkit** on the guide's page in Flav-Toolkit's hub. Pet levels are never lost either way (the game sends them at every login), but souls picked up while the overlay is closed only show up after your next login.
@@ -127,9 +127,9 @@ You need **Windows 10 or 11** (64-bit) and **AION 2** in Borderless or Windowed 
 > [!IMPORTANT]
 > Most setups that fail, fail here. Make sure it reads the game before going on.
 
-**Flav-Toolkit** (0.3 or later): install it from [its releases](https://github.com/Flavbestlol/flav-toolkit/releases/latest) and follow its own steps (Npcap, run it as administrator, start AION 2 with it running). Then go to Step 2.
+**Flav-Toolkit** (0.3 or later, the main way): install it from [its releases](https://github.com/Flavbestlol/flav-toolkit/releases/latest) and follow its own steps (Npcap, run it as administrator, start AION 2 with it running). Then go to Step 2.
 
-**Or the A2 Tools DPS Meter:**
+**Or, as a backup, the A2 Tools DPS Meter:**
 
 1. Install **[Npcap](https://npcap.com/#download)**. On the options screen, tick **"Install Npcap in WinPcap API-compatible Mode"**.
    (If you skip this, the meter offers to install Npcap the first time it opens. Tick the same box then.)
