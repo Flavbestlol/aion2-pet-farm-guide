@@ -1,0 +1,12 @@
+[package]
+name = "feed_core_test"
+version = "1.20.0"
+edition = "2021"
+publish = false
+
+# The same Flav-Toolkit commit the overlay pins (overlay/src-tauri/Cargo.toml)
+[dependencies]
+flav-sdk = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
+flav-feed = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
+flav-events = { git = "https://github.com/Flavbestlol/flav-toolkit", rev = "edfb15552710b761024586c8a6aaa78ab8f39a3a" }
+serde_json = "1"

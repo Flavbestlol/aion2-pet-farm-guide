@@ -3,7 +3,7 @@
 // goes, with its <script> line in assemble.py.
 //  - game records come from the plugin's bridge.json (A2 Tools' plugin-data folder), the moment the
 //    plugin writes them;
-//  - counts and the soul log are read from the plugin's own saved files (it records; we show);
+//  - the plugin's saved counts and soul log are read beside ours (host.js takes the newer);
 //  - our heartbeat tells the plugin we're on screen (it then hides, or shows a small card);
 //  - the installer's step that adds the plugin to A2 Tools is finished here when it couldn't be.
 (function () {
@@ -69,6 +69,8 @@
   let cursor = null, run = null, lastAt = Date.now() - 1000, lastEventAt = 0;
   function deliver(e) {
     lastAt = Math.max(lastAt, Number(e.at) || 0);
+    // Flav-Toolkit is the source: the bridge is read (so nothing replays later) but not handed on
+    if (OV.active !== "a2") return;
     lastEventAt = Date.now();
     if (e.ev === "character") fire("character", e.data);
     else fire(e.ev, e.data, { character: e.character, at: e.at });
@@ -102,6 +104,7 @@
     resyncTimer = setTimeout(resync, ms);
   }
   async function resync() {
+    if (OV.active !== "a2") return;
     if (Date.now() - lastEventAt < 2500) return scheduleResync(2500); // the plugin may not have saved the latest yet
     const k = window.FG_key ? window.FG_key() : null;
     if (!k || !window.FG_adopt) return;
@@ -119,6 +122,7 @@
 
   // ── is the plugin running in A2 Tools? ──
   async function checkPlugin() {
+    if (OV.active !== "a2") return;
     // alive if it beat lately, or recorded something lately (Windows slows a background window's timers
     // to about once a minute, but recording runs on game events)
     // and a plugin that hid itself for us is fine: hidden, its timers sleep but game events still
@@ -144,7 +148,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     const n = $(".ovnotice");
-    if (n) n.innerHTML = "<b>Nothing is being recorded.</b> Open Farm Guide in A2 Tools (Settings → Plugins → Open). While this overlay runs it tucks itself away and keeps recording.";
+    if (n) n.innerHTML = "<b>Nothing is being recorded.</b> Start Flav-Toolkit, or open Farm Guide in A2 Tools (Settings → Plugins → Open): while this overlay runs, A2 Tools' window tucks itself away and keeps recording.";
     beat();
   });
 
@@ -152,7 +156,7 @@
     id: "a2",
     label: "A2 Tools",
     // the plugin's records: counts, soul log, which server was played last
-    owns: (key) => /^(pets-|log-|last$)/.test(key),
+    // the plugin's copy of the records (counts, soul log, the server played last)
     readOwned: (key) => read("plugin", key),
     // first start: take the plugin's choices, but start as a tip in the Apple theme
     async firstPrefs() {

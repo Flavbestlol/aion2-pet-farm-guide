@@ -35,7 +35,9 @@ jobs:
         with:
           toolchain: stable
       - name: Rust tests (the parts with no window)
-        run: cargo run --quiet --manifest-path tests/setup_core/Cargo.toml
+        run: |
+          cargo run --quiet --manifest-path tests/setup_core/Cargo.toml
+          cargo run --quiet --manifest-path tests/feed_core/Cargo.toml
 
   overlay:
     name: Overlay (Windows)
