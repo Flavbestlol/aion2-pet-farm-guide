@@ -4,8 +4,10 @@
 //! `my_server` and `my_profile`.
 //!
 //! The page gets every event as it came (`feed`), the core's status (`feed-status`), the hub's
-//! Open and Settings (`show`), and which source is in use (`source`). It decides the rest
-//! (web/source-feed.js), so the same rules run in its tests.
+//! Open and Settings (`show`), a setting the player changed in the hub (`setting`), and which
+//! source is in use (`source`). It decides the rest (web/source-feed.js), so the same rules run in
+//! its tests. It describes its settings for the hub with `feed_settings`; we send that on, and the
+//! last one again after every reconnect.
 //!
 //! We connect once the page says it's ready (`feed_start`). The core is in use while we're
 //! connected: `Client::connect` succeeds only once welcomed, and fails fast when Flav-Toolkit isn't
@@ -16,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use flav_sdk::{Client, Error};
+use flav_sdk::{Client, Error, SettingsGroup};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -38,6 +40,29 @@ pub fn core_installed() -> bool {
 #[tauri::command]
 pub fn source_state(state: tauri::State<FeedState>) -> Value {
     state.0.lock().unwrap_or_else(|p| p.into_inner()).clone()
+}
+
+/// The page's last description of its settings, and whether the core still has to get it.
+static SETTINGS: Mutex<(Option<Vec<SettingsGroup>>, bool)> = Mutex::new((None, false));
+
+fn settings() -> std::sync::MutexGuard<'static, (Option<Vec<SettingsGroup>>, bool)> {
+    SETTINGS.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+/// The page describes its settings (after connecting, and after every change): sent to the core
+/// by the reader thread within half a second.
+#[tauri::command]
+pub fn feed_settings(groups: Value) -> Result<(), String> {
+    let groups = feed_core::settings_from_page(groups).ok_or("not a settings description")?;
+    *settings() = (Some(groups), true);
+    Ok(())
+}
+
+/// The version the hub shows (addon.json's beside the exe), for the page's Settings.
+#[tauri::command]
+pub fn addon_version() -> String {
+    let addon_json = std::env::current_exe().ok().and_then(|e| std::fs::read_to_string(e.with_file_name("addon.json")).ok());
+    feed_core::addon_version(addon_json.as_deref())
 }
 
 fn set(app: &AppHandle, v: Value) {
@@ -64,7 +89,28 @@ pub fn feed_start(app: AppHandle) {
                     told = None;
                     set(&app, json!({ "feed": true, "core": client.core, "status": client.status }));
                     client.set_note(Some("Recording your pets"));
+                    // a new connection: the core gets our settings again (the page may have described
+                    // them before we connected, or while we were away)
+                    {
+                        let mut s = settings();
+                        s.1 = s.0.is_some();
+                    }
                     loop {
+                        let due = {
+                            let mut s = settings();
+                            if s.1 {
+                                s.1 = false;
+                                s.0.clone()
+                            } else {
+                                None
+                            }
+                        };
+                        if let Some(groups) = due {
+                            if client.set_settings(&groups).is_err() {
+                                settings().1 = true;
+                                break;
+                            }
+                        }
                         match client.next(Duration::from_millis(500)) {
                             Ok(Some(m)) => {
                                 if let Some((name, payload)) = feed_core::to_page(m) {

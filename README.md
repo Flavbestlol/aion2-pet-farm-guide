@@ -104,7 +104,7 @@ Round or square, resize with the gold grip, or hide the monster icons, all right
 
 - **Pets:** every pet with its level and souls left, with tags for Abyss, Rift and boss pets (they follow your faction). Click one to be guided to its best spots.
 - **Stats:** souls per hour, this session and today, and your best farming areas.
-- **Settings:** grouped into sections: your character, route, tip and folding, map, look, sound, overlay.
+- **Settings:** grouped into sections: your character, route, tip and folding, map, look, sound, overlay. With Flav-Toolkit 0.18 or later the same settings are in its hub too (the guide's page, and *Settings*), and **Look, Size, See-through, Animations and Sounds** can be set there once for every add-on.
 
 ### It knows where you are
 

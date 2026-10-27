@@ -431,7 +431,7 @@ fn main() {
             showing: AtomicBool::new(true),
         })
         .manage(feed::FeedState(Mutex::new(serde_json::json!({ "feed": false }))))
-        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, next_screen, open_link, install::install_kind, a2::setup::plugin_setup, a2::setup::start_meter])
+        .invoke_handler(tauri::generate_handler![read_file, read_stamped, feed::source_state, feed::feed_start, feed::core_installed, feed::feed_settings, feed::addon_version, write_file, set_hits, set_capture, set_focus, autostart, game_state, set_showing, quit, next_screen, open_link, install::install_kind, a2::setup::plugin_setup, a2::setup::start_meter])
         .setup(|app| {
             // built already in place and visible, so it never activates (a show() later would take focus)
             let (mut lx, mut ly, mut lw, mut lh) = (0.0, 0.0, 1280.0, 720.0);

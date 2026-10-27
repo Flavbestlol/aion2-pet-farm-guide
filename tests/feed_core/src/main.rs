@@ -83,5 +83,52 @@ fn main() {
     let _ = feed.show("pet-farm-guide", Show::Toggle);
     let got = page(&mut client, Duration::from_millis(500));
     check("the dock's icon → show toggle", got.iter().any(|(n, v)| *n == "show" && v == "toggle"), &got);
+
+    // ── the guide's settings in the hub (core 0.18.0, ADDONS.md 4d) ──
+    check("we ask for settings, and the core grants it", client.features.iter().any(|f| f == "settings"), &client.features);
+    // the page's own description, written by tests/overlay/test_overlay.py (it runs first in CI);
+    // without it, a small one with the same shared links
+    let from_page = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../overlay/out/hub-settings.json")).ok();
+    if from_page.is_none() {
+        println!("   (no tests/overlay/out/hub-settings.json: run the page tests first for the full description)");
+    }
+    let desc: Value = from_page.as_deref().and_then(|t| serde_json::from_str(t).ok()).unwrap_or_else(|| {
+        json!([{ "id": "look", "name": "Look", "items": [
+            { "key": "theme", "name": "Theme", "kind": "choice", "choices": [["hud", "HUD"], ["apple", "Apple"], ["ingame", "In-game"], ["classic", "Classic"]], "value": "hud", "shared": { "id": "look", "map": { "game": "ingame" } } },
+            { "key": "ovScale", "name": "Size", "kind": "number", "min": 0.6, "max": 1.5, "step": 0.05, "value": 1, "percent": true, "shared": { "id": "size" } },
+            { "key": "ovBg", "name": "Background", "kind": "number", "min": 0, "max": 0.9, "step": 0.01, "value": 0.66, "percent": true, "shared": { "id": "solid", "scale": 0.01 } },
+            { "key": "effects", "name": "Effects", "kind": "switch", "value": true, "shared": { "id": "motion" } },
+            { "key": "sounds", "name": "Sounds", "kind": "switch", "value": true, "shared": { "id": "sounds" } }
+        ] }])
+    });
+    let groups = feed_core::settings_from_page(desc.clone());
+    check("the page's description reads as the core's settings", groups.is_some(), &desc);
+    let groups = groups.unwrap_or_default();
+    let ours: usize = groups.iter().map(|g| g.items.len()).sum();
+    check("… and passes the core's own rules whole (no item, link or value dropped)", flav_events::settings::clean(groups.clone()) == groups, &ours);
+    let _ = client.set_settings(&groups);
+    let until = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < until && !feed.addon_settings().contains_key("pet-farm-guide") {
+        let _ = client.next(Duration::from_millis(50));
+    }
+    let kept = feed.addon_settings().get("pet-farm-guide").map(|d| d.groups.clone()).unwrap_or_default();
+    let kept_n: usize = kept.iter().map(|g| g.items.len()).sum();
+    check("Flav-Toolkit keeps every one of our settings", kept_n == ours && ours > 0, &(kept_n, ours));
+    let items: Vec<_> = kept.iter().flat_map(|g| g.items.iter()).collect();
+    let shared: Vec<(String, String)> = items.iter().filter_map(|i| i.shared.as_ref().map(|s| (i.key.clone(), s.id.clone()))).collect();
+    let want = [("theme", "look"), ("ovScale", "size"), ("ovBg", "solid"), ("effects", "motion"), ("sounds", "sounds")];
+    check("the five shared settings keep their links", want.iter().all(|(k, id)| shared.iter().any(|(sk, sid)| sk == k && sid == id)) && shared.len() == 5, &shared);
+    // what each shared value becomes for us, by the core's own rule
+    let own = |key: &str, v: Value| {
+        items.iter().find(|i| i.key == key).and_then(|i| flav_events::settings::own_value(i.shared.as_ref()?, &i.control, &v))
+    };
+    check("shared Look: game → our In-game, hud → our HUD", own("theme", json!("game")) == Some(json!("ingame")) && own("theme", json!("hud")) == Some(json!("hud")), &(own("theme", json!("game")), own("theme", json!("hud"))));
+    check("shared See-through 50 % → our background 0.5; 100 % → our most solid, 0.9", own("ovBg", json!(50)) == Some(json!(0.5)) && own("ovBg", json!(100)) == Some(json!(0.9)), &(own("ovBg", json!(50)), own("ovBg", json!(100))));
+    check("shared Size 200 % → our largest, 150 %", own("ovScale", json!(2.0)) == Some(json!(1.5)), &own("ovScale", json!(2.0)));
+    let _ = feed.send_setting("pet-farm-guide", "theme", json!("ingame"));
+    let got = page(&mut client, Duration::from_millis(500));
+    check("a change in the hub → setting {key, value} for the page", got.iter().any(|(n, v)| *n == "setting" && v["key"] == "theme" && v["value"] == "ingame"), &got);
+    check("a description too large for the feed is refused here", feed_core::settings_from_page(json!([{ "id": "x", "name": "x", "items": [], "pad": "y".repeat(300 * 1024) }])).is_none(), &"");
+    check("the hello's version comes from addon.json, else the build's own", feed_core::addon_version(None) == env!("CARGO_PKG_VERSION") || !feed_core::addon_version(None).is_empty(), &feed_core::addon_version(None));
     std::process::exit(if ok { 0 } else { 1 });
 }

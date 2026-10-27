@@ -1,5 +1,5 @@
-AION 2 PET FARM GUIDE · OVERLAY 1.22.3
-======================================
+AION 2 PET FARM GUIDE 1.25.4
+============================
 
 The Farm Guide drawn straight over AION 2: no window, no box, no background you didn't choose.
 A small tip (the monster to kill, souls left, a progress ring) sits wherever you drag it; click it
@@ -74,6 +74,9 @@ SMART
   - Under the map: round/square, loop on/off, monster icons on/off, and hide (it folds away). Drag the map's corner grip
     to resize it; double-click the grip for the default size.
   - Settings tab: theme (HUD / Apple / In-game / Classic), size, background (0 = fully clear), and more.
+    The same settings are in Flav-Toolkit's hub (the guide's page there, and Settings) from
+    Flav-Toolkit 0.18; Look, Size, See-through, Animations and Sounds can be set there for every
+    add-on at once.
   - Settings > Overlay: Reset position (the tip back in place), Next screen (with more than one
     monitor), Close overlay.
   - An orange dot on the tip = nothing is being recorded, and the guide says why: Flav-Toolkit

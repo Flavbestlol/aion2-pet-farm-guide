@@ -41,7 +41,7 @@ def pets_list(D_ids, level=0, points=0):
     return {"levels": [{"pet": int(i), "level": level} for i in D_ids], "points": [{"pet": int(i), "points": points} for i in D_ids]}
 
 
-def boot(browser, files=None, source=None, kind=None, game=None, tour=False):
+def boot(browser, files=None, source=None, kind=None, game=None, tour=False, version=None):
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.on("console", lambda m: errors.append(f"{m.type}: {m.text}") if m.type == "error" and "Failed to load resource" not in m.text else None)
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
@@ -54,6 +54,8 @@ def boot(browser, files=None, source=None, kind=None, game=None, tour=False):
         init += "window.__game=" + json.dumps(game) + ";"
     if tour:
         init += "window.__forceTour=true;"
+    if version is not None:
+        init += "window.__version=" + json.dumps(version) + ";"
     page.add_init_script(init + FAKE)
     page.goto(URL)
     page.wait_for_function("() => typeof window.FG_key === 'function'", timeout=15000)
@@ -308,6 +310,77 @@ with sync_playwright() as p:
     show("toggle")
     show("open")
     check("dock: the hub's Open brings it back too", not hidden() and not folded())
+    page.close()
+
+    # ── the guide's settings in Flav-Toolkit's hub (ADDONS.md 4d) ──
+    hubp = {"folded": True, "ovAutostartAsked": True, "ovMoveTold": True, "tourOff": True, "theme": "hud", "ovScale": 1, "ovBg": 0.66, "goal": 3, "rift": False}
+    page = boot(browser, {"own": {"prefs": json.dumps(hubp)}}, source=feedsrc, kind="store", version="9.8.7")
+    page.wait_for_timeout(700)
+    sent = lambda: page.evaluate("() => window.__calls.filter(([c]) => c === 'feed_settings').map(([, a]) => a.groups)")
+    item = lambda groups, key: next((i for g in groups for i in g["items"] if i["key"] == key), None)
+    first = sent()
+    check("hub settings: described once Flav-Toolkit is the source", len(first) == 1, len(first))
+    groups = first[-1] if first else []
+    names = [g["id"] for g in groups]
+    check("hub settings: the Settings tab's groups, the overlay's last", names == ["you", "route", "tip", "map", "tips", "look", "sound", "overlay"], names)
+    keys = [i["key"] for g in groups for i in g["items"]]
+    check("hub settings: every key once", len(keys) == len(set(keys)), keys)
+    check("hub settings: no list, layout or size of a part", not any(k in keys for k in ("priority", "layout", "mapSize", "gw", "view")), keys)
+    th, sc, bg, fx, so = (item(groups, k) for k in ("theme", "ovScale", "ovBg", "effects", "sounds"))
+    check("hub settings: theme is the shared Look (game = In-game)", th and th["value"] == "hud" and th["shared"] == {"id": "look", "map": {"game": "ingame"}} and ["ingame", "In-game"] in th["choices"], th)
+    check("hub settings: Size is shared, 60–150 %", sc and sc["shared"] == {"id": "size"} and (sc["min"], sc["max"], sc["value"], sc.get("percent")) == (0.6, 1.5, 1, True), sc)
+    check("hub settings: the background is the shared See-through (0–100 % → 0–0.9)", bg and bg["shared"] == {"id": "solid", "scale": 0.01} and bg["value"] == 0.66 and bg["max"] == 0.9, bg)
+    check("hub settings: effects and sounds are the shared Animations and Sounds", fx and fx["shared"] == {"id": "motion"} and so and so["shared"] == {"id": "sounds"}, (fx, so))
+    auto = item(groups, "ovAutostart")
+    check("hub settings: a store copy's Start with Windows is shown greyed, with why", auto and auto.get("disabled") == "The store's copy starts with Flav-Toolkit", auto)
+    check("hub settings: choices travel as text (goal 3 → \"3\")", item(groups, "goal")["value"] == "3" and ["2", "2"] in item(groups, "goal")["choices"], item(groups, "goal"))
+    check("hub settings: Rift alerts greyed while the Rift route is off", item(groups, "riftAlert").get("disabled"), item(groups, "riftAlert"))
+    check("hub settings: Tour and Next screen are buttons", item(groups, "tourAgain")["kind"] == "action" and item(groups, "nextScreen")["kind"] == "action", (item(groups, "tourAgain"), item(groups, "nextScreen")))
+    out = ROOT / "tests" / "overlay" / "out"
+    out.mkdir(exist_ok=True)
+    (out / "hub-settings.json").write_text(json.dumps(groups, indent=1))  # tests/feed_core checks it against the core's rules
+
+    # changes from the hub
+    hub = lambda k, v: (page.evaluate("([k, v]) => window.__emitHost('setting', { key: k, value: v })", [k, v]), page.wait_for_timeout(500))
+    hub("theme", "ingame")
+    check("hub → theme In-game: the guide changes look", page.evaluate("() => FG_prefs().theme === 'ingame' && document.body.classList.contains('ingame')"))
+    check("hub → theme: described again with the new value", item(sent()[-1], "theme")["value"] == "ingame", item(sent()[-1], "theme"))
+    hub("ovScale", 1.2)
+    check("hub → Size 120 %: the overlay grows", page.evaluate("() => getComputedStyle(document.documentElement).getPropertyValue('--ov-scale').trim()") == "1.2")
+    hub("ovBg", 0.5)
+    check("hub → See-through: the background follows", page.evaluate("() => getComputedStyle(document.documentElement).getPropertyValue('--ov-bg').trim()") == "0.5")
+    hub("goal", "2")
+    check("hub → Goal level \"2\": stored as the number 2", page.evaluate("() => FG_prefs().goal") == 2)
+    hub("effects", False)
+    check("hub → Animations off: no effects", page.evaluate("() => FG_prefs().effects === false && document.body.classList.contains('nofx')"))
+    saved = page.evaluate("() => JSON.parse(window.__files.own.prefs)")
+    check("hub → each change is saved as the guide saves it", saved.get("theme") == "ingame" and saved.get("goal") == 2 and saved.get("ovScale") == 1.2, {k: saved.get(k) for k in ("theme", "goal", "ovScale")})
+    n = len(sent())
+    hub("riftAlert", "off")
+    hub("ovAutostart", True)
+    hub("nope", 1)
+    hub("goal", "7")
+    check("hub → greyed, unknown or invalid: nothing changes, nothing sent", len(sent()) == n and page.evaluate("() => FG_prefs().riftAlert === 'on' && FG_prefs().goal === 2 && !window.__calls.some(([c, a]) => c === 'autostart' && a.on)"), len(sent()) - n)
+    hub("nextScreen", True)
+    check("hub → Next screen: the overlay moves", page.evaluate("() => window.__calls.some(([c]) => c === 'next_screen')"))
+    page.evaluate("() => document.querySelector('.tabs button[data-tab=\"settings\"]')?.click()")
+    page.wait_for_timeout(400)
+    page.evaluate("() => FG_hubSettings.set('freeAuto', !FG_prefs().freeAuto)")  # warm-up: settings tab open
+    page.wait_for_timeout(500)
+    n = len(sent())
+    page.evaluate("() => { const b = [...document.querySelectorAll('.row')].find((r) => r.textContent.startsWith('Next stop by itself'))?.querySelector('button.toggle'); b && b.click(); }")
+    page.wait_for_timeout(600)
+    check("a change in the guide's own Settings tab reaches the hub", len(sent()) == n + 1 and item(sent()[-1], "autoNext")["value"] == page.evaluate("() => FG_prefs().autoNext"), len(sent()) - n)
+    page.evaluate("() => FG_OV.prefsSaved()")
+    page.wait_for_timeout(500)
+    check("a save that changes nothing the hub shows sends nothing", len(sent()) == n + 1, len(sent()) - n)
+    check("Settings › Overlay shows addon.json's version, not a built-in one", "Version 9.8.7" in page.evaluate("() => document.body.innerText"))
+    page.close()
+
+    # an older core (no feed, A2 Tools): nothing is described
+    page = boot(browser, version="9.8.7")
+    page.wait_for_timeout(500)
+    check("hub settings: nothing sent without Flav-Toolkit", not page.evaluate("() => window.__calls.some(([c]) => c === 'feed_settings')"))
     page.close()
 
     browser.close()

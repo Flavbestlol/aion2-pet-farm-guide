@@ -1,7 +1,8 @@
 """Repository rules, checked in CI (and before a release): python3 tools/check.py
 
 - every JSON file parses;
-- the overlay's version is the same in Cargo.toml, Cargo.lock, tauri.conf.json, host.js and its README.txt;
+- one version for the whole add-on: addon.json's, the plugin's, the overlay's (Cargo.toml, Cargo.lock,
+  tauri.conf.json) and its README.txt's; the page reads it from addon.json, never hard-codes one;
 - no key, certificate, capture or recording is tracked;
 - the plugin stays under A2 Tools' 8 MB catalogue limit (its game images are not in git: counted
   only when present);
@@ -35,22 +36,25 @@ for f in files:
         except Exception as e:  # noqa: BLE001
             bad(f"{f}: not valid JSON ({e})")
 
-# the overlay's version, five places
+# one version, six places (the hub shows addon.json's; the overlay page reads it from there)
 tauri = ROOT / "overlay/src-tauri"
 cargo = re.search(r'^version\s*=\s*"([^"]+)"', (tauri / "Cargo.toml").read_text(), re.M)
 conf = json.loads((tauri / "tauri.conf.json").read_text()).get("version")
-host = re.search(r'const VERSION = "([^"]+)"', (ROOT / "overlay/web/host.js").read_text())
 lock = re.search(r'name = "farm-guide-overlay"\nversion = "([^"]+)"', (ROOT / "Cargo.lock").read_text())
-readme = re.match(r"AION 2 PET FARM GUIDE · OVERLAY (\S+)\n", (ROOT / "overlay/README.txt").read_text(encoding="utf-8"))
+readme = re.match(r"AION 2 PET FARM GUIDE (\S+)\n", (ROOT / "overlay/README.txt").read_text(encoding="utf-8"))
 versions = {
+    "addon.json": json.loads((ROOT / "addon.json").read_text(encoding="utf-8")).get("version"),
+    "plugin manifest.json": json.loads((ROOT / "plugin/farm-guide/manifest.json").read_text(encoding="utf-8-sig")).get("version"),
     "Cargo.toml": cargo and cargo.group(1),
     "Cargo.lock": lock and lock.group(1),
     "tauri.conf.json": conf,
-    "host.js": host and host.group(1),
     "README.txt": readme and readme.group(1),
 }
 if len(set(versions.values())) != 1 or None in versions.values():
-    bad(f"the overlay's version differs: {versions}")
+    bad(f"the version differs: {versions}")
+for f in files:
+    if f.startswith("overlay/web/") and f.endswith(".js") and re.search(r'VERSION\s*=\s*"\d', (ROOT / f).read_text(encoding="utf-8")):
+        bad(f"{f}: a hard-coded version (the page reads addon.json's: invoke('addon_version'))")
 
 # no tray icon of its own: Flav-Toolkit's dock and hub are the way in and out
 if "tray-icon" in (tauri / "Cargo.toml").read_text() or "TrayIconBuilder" in (tauri / "src/main.rs").read_text():
@@ -74,8 +78,6 @@ if manifest.get("id") != "farm-guide":
 
 # addon.json (Flav-Toolkit's hub): the plugin's version, decoders that exist, the emblem's limits
 addon = json.loads((ROOT / "addon.json").read_text(encoding="utf-8"))
-if addon.get("version") != manifest.get("version"):
-    bad(f"addon.json says {addon.get('version')}, the plugin {manifest.get('version')}: keep them the same (the overlay writes the plugin's anyway)")
 if addon.get("permissions", {}).get("network"):
     bad("addon.json: the overlay reaches no network (Flav-Toolkit downloads its updates): permissions.network stays empty")
 dec = addon.get("decoders", {})

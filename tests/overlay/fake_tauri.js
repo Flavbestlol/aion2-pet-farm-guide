@@ -23,6 +23,7 @@
         }
         if (cmd === "autostart") return false;
         if (cmd === "install_kind") return window.__kind || "hand";
+        if (cmd === "addon_version") return window.__version || "0.0.0-test";
         if (cmd === "plugin_setup") return "none";
         if (cmd === "game_state") return window.__game || [true, true];
         if (cmd === "source_state") return window.__source || null;
