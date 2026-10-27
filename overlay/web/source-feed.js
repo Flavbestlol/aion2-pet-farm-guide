@@ -11,6 +11,9 @@
 //  - Flav-Toolkit hands the last pet list again on every reconnect: only a list newer than our
 //    counts (and than anything handed on since) is applied (records.js).
 //  - While it's the source, the overlay records the counts itself (host.js keeps them).
+//  - The guide's settings are in Flav-Toolkit's hub too (ADDONS.md 4d): described when we connect
+//    and after every save of the prefs (only when something the hub shows changed); a change made
+//    in the hub is applied as a click in the Settings tab applies it, then described again.
 (function () {
   "use strict";
   const OV = window.FG_OV;
@@ -87,6 +90,27 @@
     chain = chain.then(() => deliver(e)).catch(console.error);
   }
 
+  // ── the settings in Flav-Toolkit's hub ──
+  let sentSettings = "", describeTimer = 0;
+  function describe(now) {
+    clearTimeout(describeTimer);
+    if (!now) { describeTimer = setTimeout(() => describe(true), 250); return; } // a slider's many saves: one
+    const S = window.FG_hubSettings;
+    if (!state.feed || !S) return;
+    const groups = S.describe();
+    const json = JSON.stringify(groups);
+    if (json === sentSettings) return;
+    sentSettings = json;
+    invoke("feed_settings", { groups }).catch(() => { sentSettings = ""; });
+  }
+  OV.prefsSaved = () => describe(false);
+  function onSetting(s) {
+    const S = window.FG_hubSettings;
+    if (!s || typeof s.key !== "string" || !S) return;
+    S.set(s.key, s.value); // saves (and so describes again); a key we don't know changes nothing
+    describe(true);
+  }
+
   // ── is anything being recorded? Flav-Toolkit says, every 2 s ──
   function showStatus() {
     if (OV.active !== "feed") return;
@@ -110,6 +134,11 @@
       OV.setActive("feed");
       sendCharacter();
       showStatus();
+      sentSettings = ""; // a new connection: the core gets them again (feed.rs sends the last one too)
+      // once the guide has its prefs (it publishes FG_hubSettings then): at most 15 s
+      let tries = 0;
+      const first = () => { if (window.FG_hubSettings) describe(true); else if (state.feed && ++tries < 30) setTimeout(first, 500); };
+      setTimeout(first, 300);
     } else {
       server = 0; profile = null; told = "";
       if (hold) { clearTimeout(hold.timer); hold = null; }
@@ -129,6 +158,7 @@
 
   listen("feed", (e) => onEvent(e.payload));
   listen("feed-status", (e) => { status = e.payload || null; showStatus(); });
+  listen("setting", (e) => onSetting(e.payload));
   listen("source", (e) => onSource(e.payload));
   // the hub's Open and Settings for Pet Farm Guide, and the dock's icon (`toggle`: open, then put away)
   listen("show", (e) => {

@@ -11,3 +11,4 @@ tests/*/target/
 *.pcapng
 *.pem
 .env
+tests/overlay/out/

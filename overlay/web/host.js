@@ -77,6 +77,7 @@
       },
       async set(key, value) {
         await invoke("write_file", { scope: "own", key, value: JSON.stringify(value) });
+        if (key === "prefs" && OV.prefsSaved) OV.prefsSaved(); // the hub's copy of the settings follows
       },
     }),
     notify: async () => true,
@@ -103,6 +104,26 @@
       const show = { front: "game in front", running: "game running", always: "always" }[p.ovShow || "front"];
       if (kind === "store") return `records from ${from} · shows when ${show} · started and updated by Flav-Toolkit`;
       return `records from ${from} · shows when ${show} · starts with Windows ${p.ovAutostart ? "on" : "off"} · no more updates: move to Flav-Toolkit`;
+    },
+    // the overlay's own settings for Flav-Toolkit's hub (the guide's hubSpec adds them to its groups):
+    // the same as the rows below, with Size and See-through shared with every add-on
+    hubItems(part) {
+      const p = prefs();
+      if (part === "look") return [
+        { key: "ovScale", name: "Size", help: "Everything in the guide larger or smaller (or hold Ctrl and scroll over it)", kind: "number", min: 0.6, max: 1.5, step: 0.05, percent: true, get: () => Number(p.ovScale) || 1, after: () => { applyLook(); layout(); }, shared: { id: "size" } },
+        { key: "ovBg", name: "Background", help: "From fully clear to solid", kind: "number", min: 0, max: 0.9, step: 0.01, percent: true, get: () => p.ovBg ?? 0.66, after: applyLook, shared: { id: "solid", scale: 0.01 } },
+        { key: "ovSide", name: "Docked side", help: "Auto: the edge nearest the tip. The guide grows out of that edge", kind: "choice", choices: [["auto", "Auto"], ["left", "Left"], ["right", "Right"]], after: layout },
+        { key: "ovFace", name: "Layout faces", help: "Middle: toward the centre of the screen. Edge: toward the edge it's docked to", kind: "choice", choices: [["middle", "Middle"], ["edge", "Edge"]], after: layout },
+      ];
+      if (part === "app") return [
+        { key: "ovShow", name: "Show", help: "Hidden whenever AION 2 isn't running; and, if you like, while you're in another window", kind: "choice", choices: [["front", "Game in front"], ["running", "Game running"], ["always", "Always"]], after: updateShow },
+        { key: "ovAutostart", name: "Start with Windows", help: "Off unless you turn it on. When on, it waits hidden until you start AION 2", kind: "switch",
+          disabled: kind === "store" ? "The store's copy starts with Flav-Toolkit" : undefined,
+          set: (v) => { p.ovAutostart = v; p.ovAutostartAsked = true; invoke("autostart", { on: v }).catch(() => {}); } },
+        { key: "resetPos", name: "Position", help: "The tip back where it started", kind: "action", label: "Reset position", run: () => { anchor = { ...DEFAULT_ANCHOR }; pinTop = null; saveAnchor(); layout(); } },
+        { key: "nextScreen", name: "Screen", help: "With more than one monitor: move the guide to the next one", kind: "action", label: "Next screen", run: () => invoke("next_screen").catch(() => {}) },
+      ];
+      return [];
     },
     settings({ row, seg, toggle, h, prefs, savePrefs }, part) {
       if (part === "look") {
@@ -152,7 +173,9 @@
       row("Overlay", `Version ${VERSION}`, btns);
     },
   };
-  const VERSION = "1.22.3";
+  // the add-on's version as the hub shows it: addon.json's beside the exe (feed.rs addon_version)
+  let VERSION = "";
+  invoke("addon_version").then((v) => { if (typeof v === "string") VERSION = v; }).catch(() => {});
 
   // ── a card in the middle of the screen: questions and news from the overlay itself ──
   // One at a time; it takes the mouse while it's up (see hits).

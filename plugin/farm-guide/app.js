@@ -1966,6 +1966,123 @@
     els.ver.textContent = `Data snapshot ${D.v} · ${route.length} stops · ${Object.keys(D.pets).filter((p) => E.isFarmable(D, p)).length} farmable pets`;
     els.ver.title = D.community ? `Spawns and drops: MetaBot.GG. Island Windstreams, Abyss bases, bosses and unconfirmed sources: ${D.community.credit}` : "";
   }
+
+  // ── the same settings in Flav-Toolkit's hub (ADDONS.md 4d) ───────
+  // What the Settings tab above lets you set, described for the hub, and a change from the hub
+  // applied the way a click in the tab applies it. Left out, as in the hub's rules: the pet list's
+  // state, the genus priority, the layout and the map and guide sizes (they stay in the guide).
+  // A choice's values travel as text ("3", "true"); set() turns them back into the pref's own.
+  function hubSpec() {
+    const reroute = () => { rebuild(); renderHeader(); };
+    const sw = (key, name, help, after, more) => ({ key, name, help, kind: "switch", after, ...more });
+    const ch = (key, name, help, choices, after, more) => ({ key, name, help, kind: "choice", choices, after, ...more });
+    const off = (cond, why) => (cond ? why : undefined);
+    const THEMES = HOST ? [["hud", "HUD"], ["apple", "Apple"], ["ingame", "In-game"], ["classic", "Classic"]] : [["classic", "Classic"], ["ingame", "In-game"]];
+    const groups = [
+      { id: "you", name: "Your character", items: [
+        ch("faction", "Faction", "Auto: from your server", [["auto", "Auto"], ["elyos", "Elyos"], ["asmodian", "Asmodian"]], reroute),
+        { key: "myLevel", name: "My level", help: "0: from the game", kind: "number", min: 0, max: 60, step: 1, after: reroute },
+        ch("goal", "Goal level", "Pet level to farm every pet to", [[1, "1"], [2, "2"], [3, "3"]], () => { rstate.base = {}; reroute(); }),
+      ] },
+      { id: "route", name: "Route", items: [
+        ch("order", "Route order", "One genus at a time, or the fewest stops", [["priority", "Priority"], ["nearest", "Fewest stops"]], reroute),
+        sw("rift", "Rift route", "A second route on the other side's map, for when a Rift is open", reroute),
+        ch("riftAlert", "Rift alerts", "5 minutes before each Rift: offer the Rift route", [["on", "On"], ["off", "Off"]], null, { disabled: off(!prefs.rift, "Turn on the Rift route first") }),
+        ch("abyssAlert", "Abyss route", "When you enter the Abyss: offer the Abyss route", [["on", "Ask"], ["off", "Off"]]),
+        sw("levelPenalty", "Skip low monsters", "Count monsters 10+ levels below you as rare", reroute),
+        sw("autoNext", "Next stop by itself", "When every pet at a stop is done"),
+        sw("freeAuto", "Free route", "Farming a pet that isn't on the stop? The guide picks it up where you are"),
+        ch("freeAfter", "Switch after", "Souls in a row for that pet", [[2, "2"], [3, "3"], [5, "5"]]),
+      ] },
+      { id: "tip", name: "Size & folding", items: [
+        ch("smartOpen", "Sizing", "Smart: the full guide on the way to a new stop, your size once you farm", [[true, "Smart"], [false, "Stay as I set it"]]),
+        sw("compactMap", "Map in compact", "Show the map in the compact guide too", () => { applyView(); render(); }),
+        ch("qStyle", "Monster list", "Rings, or bars that fill up", [["ring", "Rings"], ["bar", "Bars"]], applyQStyle),
+        ch("qDone", "Finished monsters", "In the monster list, once their pet is done", [[true, "Show"], [false, "Hide"]], applyQStyle),
+        ch("qMax", "Monsters shown", "At most this many in the list", [[0, "All"], [3, "3"], [5, "5"], [8, "8"]], () => render()),
+        ch("slimHead", "Header", "Slim: one line, the stop and zone", [[false, "Normal"], [true, "Slim"]], applyPartOpts),
+        ch("travelText", "Directions", "The full route, or just the teleport", [["full", "Full route"], ["short", "Teleport only"]], () => render()),
+        ...(prefs.tip ? [
+          ch("tipIdle", "Fold when hunting stops", "No pet souls for this long", [[0, "Off"], [1, "1 min"], [3, "3 min"], [5, "5 min"]], applyTip),
+          ch("tipResume", "When hunting resumes", "After it folded by itself", [["open", "Open again"], ["stay", "Stay folded"]], null, { disabled: off(!prefs.tipIdle, "Fold when hunting stops is off") }),
+          ch("tipAuto", "Fold when mouse leaves", "Mouse away from the guide for this long", [[0, "Off"], [20, "20 s"], [60, "1 min"]], applyTip),
+          ch("dungeonFold", "In dungeons", "Field souls don't drop inside: fold away, open again when you leave", [["fold", "Fold"], ["off", "Leave it"]]),
+        ] : []),
+      ] },
+      { id: "map", name: "Map", items: [
+        sw("map", "Map", "Shape, size, loop and icons: the small buttons under the map", () => render()),
+        ch("mapWhen", "Show the map", "In the full guide. On the way: only until you start farming", [["always", "Always"], ["way", "On the way"]], () => render(), { disabled: off(!prefs.map, "The map is off") }),
+        sw("loot", "Also drops", "The scrolling loot strip under the map", () => { lootKey = ""; render(); }),
+        ch("lootMin", "Drops shown", "Every drop, or only Rare and up", [["all", "All"], ["rare", "Rare and up"]], () => { lootKey = ""; render(); }, { disabled: off(!prefs.loot, "Also drops is off") }),
+      ] },
+      { id: "tips", name: "Tips", items: [
+        ch("tourOff", "Tips", "A quick tour the first time, then a tip for each new feature, once", [[false, "On"], [true, "Off"]]),
+        { key: "tourAgain", name: "Tour", help: "See every tip again, now", kind: "action", label: "Show the tour again", run: () => { prefs.tourSeen = []; prefs.tourOff = false; selectTab("guide"); if (window.FG_retryTour) setTimeout(window.FG_retryTour, 300); } },
+      ] },
+      { id: "look", name: "Look", items: [
+        ch("theme", "Theme", "HUD floats over the game; In-game is styled like AION 2's own HUD", THEMES, () => { applyPrefs(); lootKey = ""; render(); }, { shared: HOST ? { id: "look", map: { game: "ingame" } } : undefined }),
+        ...(HOST && HOST.hubItems ? HOST.hubItems("look") : []),
+        sw("effects", "Effects", "Orbs, sparks, rings and the scrolling loot", () => { lootKey = ""; }, { shared: { id: "motion" } }),
+      ] },
+      { id: "sound", name: "Sound", items: [
+        sw("sounds", "Sounds", "Chimes for souls and level-ups", null, { shared: { id: "sounds" } }),
+        { key: "volume", name: "Volume", kind: "number", min: 0, max: 1, step: 0.05, percent: true, after: applyPrefs },
+      ] },
+      ...(HOST && HOST.hubItems ? [{ id: "overlay", name: "Overlay", items: HOST.hubItems("app") }] : []),
+    ];
+    return groups;
+  }
+  // the description the hub takes: every item with its value now
+  function hubDescribe() {
+    return hubSpec().map((g) => ({
+      id: g.id,
+      name: g.name,
+      items: g.items.map((it) => {
+        const out = { key: it.key, name: it.name, kind: it.kind };
+        if (it.help) out.help = it.help;
+        const v = it.get ? it.get() : prefs[it.key];
+        if (it.kind === "switch") out.value = !!v;
+        else if (it.kind === "choice") {
+          out.choices = it.choices.map(([cv, label]) => [String(cv), label]);
+          out.value = String(v);
+        } else if (it.kind === "number") {
+          Object.assign(out, { min: it.min, max: it.max, step: it.step || 0, value: Number(v) || 0 });
+          if (it.percent) out.percent = true;
+          if (it.unit) out.unit = it.unit;
+        } else if (it.kind === "action" && it.label) out.label = it.label;
+        if (it.shared) out.shared = it.shared;
+        if (it.disabled) out.disabled = it.disabled;
+        return out;
+      }),
+    }));
+  }
+  // a change from the hub, applied as the Settings tab applies it; false: not one of ours
+  function hubSet(key, value) {
+    const it = hubSpec().flatMap((g) => g.items).find((i) => i.key === key);
+    if (!it || it.disabled) return false;
+    if (it.kind === "action") { if (value === true) (it.run || it.set)(); }
+    else if (it.kind === "switch") {
+      if (typeof value !== "boolean") return false;
+      if (it.set) it.set(value); else prefs[key] = value;
+      if (!it.set) applyPrefs(); // as the tab's switch does
+    } else if (it.kind === "choice") {
+      const hit = it.choices.find(([cv]) => String(cv) === String(value));
+      if (!hit) return false;
+      if (it.set) it.set(hit[0]); else prefs[key] = hit[0];
+    } else if (it.kind === "number") {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return false;
+      const step = it.step || 0;
+      let v = Math.max(it.min, Math.min(it.max, n));
+      if (step) v = Math.round((it.min + Math.round((v - it.min) / step) * step) * 1e6) / 1e6;
+      if (it.set) it.set(v); else prefs[key] = v;
+    } else return false;
+    if (!it.set && it.after) it.after();
+    savePrefs();
+    if (tab === "settings") renderSettings();
+    return true;
+  }
+  // published once the player's prefs are loaded (below), so the hub never gets the defaults
   // the small recording card (plugin, while the overlay is on screen)
   const compEl = document.querySelector(".reccard"), compN = document.querySelector(".reccard .cn");
   function renderCompanion() {
@@ -3393,6 +3510,7 @@
     prefs = { ...DEFAULTS, ...(HOST ? HOST.defaults || {} : {}), ...((await a2.storage.get("prefs").catch(() => null)) || {}) };
     if (HOST) prefs.tip = true; // the overlay is always a tip that opens into the guide
     applyPrefs();
+    window.FG_hubSettings = { describe: hubDescribe, set: hubSet };
     const pl = await a2.storage.get("places").catch(() => null);
     if (pl) places = { field: Array.isArray(pl.field) ? pl.field : [], names: pl.names || {}, worlds: pl.worlds || {} };
     const last = await a2.storage.get("last").catch(() => null);
