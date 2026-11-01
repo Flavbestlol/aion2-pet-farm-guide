@@ -259,7 +259,7 @@ with sync_playwright() as p:
     check("setup copy: it says how to remove the old copy and keep the data", "Settings › Apps" in body and "answer No" in body, body)
     click_card(page, "Get Flav-Toolkit")
     calls = page.evaluate("() => window.__calls")
-    check("setup copy: Get Flav-Toolkit opens its release page", ["open_link", {"url": "https://github.com/Flavbestlol/flav-toolkit/releases/latest"}] in calls)
+    check("setup copy: Get Flav-Toolkit opens its download page", ["open_link", {"url": "https://flavbestlol.github.io/flav-toolkit/"}] in calls)
     prefs = json.loads(page.evaluate("() => window.__files.own.prefs || '{}'") or "{}")
     check("setup copy: the notice is told once", prefs.get("ovMoveTold") is True, prefs)
     page.close()

@@ -147,7 +147,7 @@ fn game_state(state: tauri::State<State>) -> (bool, bool) {
 /// A link from the page, in the default browser. Only https, and only the sites the guide links to.
 #[tauri::command]
 fn open_link(url: String) -> Result<(), String> {
-    const SITES: [&str; 6] = ["ko-fi.com", "github.com", "a2tools.app", "metabot.gg", "npcap.com", "wikily.gg"];
+    const SITES: [&str; 7] = ["ko-fi.com", "github.com", "flavbestlol.github.io", "a2tools.app", "metabot.gg", "npcap.com", "wikily.gg"];
     let rest = url.strip_prefix("https://").ok_or("only https links")?;
     let host = rest.split(['/', '?', '#']).next().unwrap_or("").to_ascii_lowercase();
     let host = host.strip_prefix("www.").unwrap_or(&host);

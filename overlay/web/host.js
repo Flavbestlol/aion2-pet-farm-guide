@@ -240,7 +240,7 @@
           : "Then close this copy and delete its folder. Your progress stays.",
       ],
       buttons: [
-        ["Get Flav-Toolkit", () => { invoke("open_link", { url: "https://github.com/Flavbestlol/flav-toolkit/releases/latest" }).catch(() => {}); }, true],
+        ["Get Flav-Toolkit", () => { invoke("open_link", { url: "https://flavbestlol.github.io/flav-toolkit/" }).catch(() => {}); }, true],
         ["Later", null],
       ],
     });
