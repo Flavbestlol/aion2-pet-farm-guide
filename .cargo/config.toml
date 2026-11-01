@@ -1,0 +1,4 @@
+# The core's crates for add-ons (flav-sdk, flav-feed, flav-events), from Flav-Toolkit's download page:
+# a Cargo registry, no account or token (ADDONS.md section 4, "Taking the core's crates").
+[registries.flav]
+index = "sparse+https://flavbestlol.github.io/flav-toolkit/cargo/"
