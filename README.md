@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Flavbestlol/flav-toolkit/releases/latest"><img alt="Install with Flav-Toolkit" src="https://img.shields.io/badge/install-with%20Flav--Toolkit-f2c35b?style=for-the-badge"></a>
+  <a href="https://flavbestlol.github.io/flav-toolkit/"><img alt="Install with Flav-Toolkit" src="https://img.shields.io/badge/install-with%20Flav--Toolkit-f2c35b?style=for-the-badge"></a>
   <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%2F%2011-1f6fd6?style=for-the-badge">
   <img alt="Flav-Toolkit 0.3+" src="https://img.shields.io/badge/a%20Flav--Toolkit%20add--on-0.3%2B-f2c35b?style=for-the-badge">
   <img alt="Vibe coded" src="https://img.shields.io/badge/vibe-coded-6fe3a1?style=for-the-badge">
@@ -38,7 +38,7 @@ The guide needs something that reads the game for it. **Flav-Toolkit is the main
 
 | Reads the game | How the guide works with it |
 |---|---|
-| **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw: click it to open the guide, click again to put it away (Flav-Toolkit 0.12 or later). The overlay keeps your progress. |
+| **[Flav-Toolkit](https://flavbestlol.github.io/flav-toolkit/)** 0.3 or later (**main**) | The guide is one of its add-ons: Flav-Toolkit reads your pet levels and every soul you pick up with the guide's own decoders, its hub lists the guide (Start, Stop, Open, Settings) and its dock shows the paw: click it to open the guide, click again to put it away (Flav-Toolkit 0.12 or later). The overlay keeps your progress. |
 | **[A2 Tools DPS Meter](https://a2tools.app)** (backup) | Load the plugin Flav-Toolkit installed in the meter (see [Install](#install)): it reads the same things and keeps your progress; the overlay shows it over the game. |
 
 When both run, the guide reads from Flav-Toolkit and A2 Tools only stands by; if Flav-Toolkit stops, the guide carries on from A2 Tools by itself. *Settings › Overlay › Game records* says which one it uses.
@@ -123,7 +123,7 @@ You need **Windows 10 or 11** (64-bit) and **AION 2** in Borderless or Windowed 
 
 **Pet Farm Guide is a Flav-Toolkit add-on.** Flav-Toolkit installs it, starts it, keeps it up to date and repairs it, like its other add-ons.
 
-1. Install **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit/releases/latest)** (0.3 or later) and follow its own steps (Npcap, run it as administrator, start AION 2 while it runs).
+1. Install **[Flav-Toolkit](https://flavbestlol.github.io/flav-toolkit/)** (0.3 or later) and follow its own steps (Npcap, run it as administrator, start AION 2 while it runs).
 2. In Flav-Toolkit's hub: **Get add-ons › Pet Farm Guide › Install**.
 3. On the guide's page in the hub, turn on **Start with Flav-Toolkit**: the overlay is what records your souls, so it should run while you farm.
 4. Log in to your character. The game sends your pet levels at login; Flav-Toolkit hands them to the guide even if it starts later.
@@ -227,7 +227,7 @@ It's locked. Click the padlock. With the A2 Tools meter, <kbd>Ctrl</kbd> + <kbd>
 
 Built on the work of others. Thank you:
 
-- **[Flav-Toolkit](https://github.com/Flavbestlol/flav-toolkit)**: reads the game for its add-ons, runs the guide's decoders, and its hub and dock.
+- **[Flav-Toolkit](https://flavbestlol.github.io/flav-toolkit/)**: reads the game for its add-ons, runs the guide's decoders, and its hub and dock.
 - **[A2 Tools DPS Meter](https://github.com/taengu/A2Tools-DPS-Meter)** by **taengu** ([a2tools.app](https://a2tools.app)): the meter, its plugin system, and the game-data decoders. The plugin's decoders come from the official [Pet Soul Tracker](https://github.com/taengu/A2Tools-Plugins).
 - **Th3Ruthless**, *AION 2 Pet Farming Routes* (Elyos and Asmodian editions): the island Windstreams, the Abyss bases and entry needs, the boss and dungeon sources, and the sources that couldn't be confirmed. We took the routes and tweaked them into the guide.
 - **[MetaBot.GG](https://metabot.gg/en/aion-2)**: spawn points, monster art and drop tables.
